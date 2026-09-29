@@ -252,18 +252,24 @@ function makeSquelchField(ch) {
   return wrap;
 }
 
-// Leads the filename with the frequency (MHz, 3 decimals) so recorded clips
-// are easy to identify in a file browser without opening them.
+// Frequency (MHz, 3 decimals) both leads the filename and names its own
+// subfolder, so on disk this is <recordings_dir>/<freq>/<YYYY>/<MM>/<DD>/...
+// (the YYYY/MM/DD nesting comes from dated_subdirectories=true, built by the
+// engine itself - see make_dated_subdirs in src/helper_functions.cpp). That
+// layout groups everything for one frequency together first, then by date -
+// e.g. for scripting a daily transcription pass over one frequency's clips.
 function formatFreqForFilename(mhz) {
   return (typeof mhz === "number" && !Number.isNaN(mhz) ? mhz : 0).toFixed(3);
 }
 
 function makeDefaultFileOutput(name, freqMhz) {
+  const freqPart = formatFreqForFilename(freqMhz);
   const namePart = (name || "").trim().replace(/\s+/g, "_");
-  const template = namePart ? `${formatFreqForFilename(freqMhz)}_${namePart}` : formatFreqForFilename(freqMhz);
+  const template = namePart ? `${freqPart}_${namePart}` : freqPart;
+  const baseDir = lastKnownRecordingsDir.replace(/\/+$/, "");
   return {
     type: scalar("string", "file"),
-    directory: scalar("string", lastKnownRecordingsDir),
+    directory: scalar("string", `${baseDir}/${freqPart}`),
     filename_template: scalar("string", template),
     dated_subdirectories: scalar("bool", true),
     split_on_transmission: scalar("bool", true),
@@ -365,6 +371,17 @@ function makeRepeaterCard(device, ch, idx) {
   if (outType === "file") {
     outFields.appendChild(makeTextField("Directory", out, "directory", true));
     outFields.appendChild(makeTextField("Filename prefix", out, "filename_template", true));
+    const resetRow = makeEl("div", "field full");
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.textContent = "↻ Use frequency-based directory + filename";
+    resetBtn.title = "Recomputes Directory and Filename prefix from this card's current frequency and name - only runs when you click it, never silently";
+    resetBtn.onclick = () => {
+      ch.outputs[0] = makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow);
+      renderRepeatersTab();
+    };
+    resetRow.appendChild(resetBtn);
+    outFields.appendChild(resetRow);
   } else {
     outFields.appendChild(makeTextField("Icecast server", out, "server", true));
     outFields.appendChild(makeNumberField("Port", out, "port", "int"));

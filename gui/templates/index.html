@@ -34,7 +34,7 @@
 <div id="save-msg" class="save-msg"></div>
 
 <nav class="tabs">
-  <button class="tab-btn active" data-tab="repeaters">Repeaters</button>
+  <button class="tab-btn active" data-tab="repeaters">Frequencies</button>
   <button class="tab-btn" data-tab="recordings">Recordings</button>
   <button class="tab-btn" data-tab="process">Process Control</button>
   <button class="tab-btn" data-tab="advanced">Advanced</button>
@@ -94,7 +94,7 @@
   </section>
 
   <section id="tab-advanced" class="tab-panel">
-    <p class="muted">Full config tree — every field RTLSDR-Airband supports, for setups the Repeaters tab doesn't cover (multiple devices, mixers, scan mode, ...).</p>
+    <p class="muted">Full config tree — every field RTLSDR-Airband supports, for setups the Frequencies tab doesn't cover (multiple devices, mixers, scan mode, ...).</p>
     <div id="visual-editor"></div>
   </section>
 
@@ -131,7 +131,7 @@
       <h2>Per-frequency settings</h2>
       <dl>
         <dt>Modulation</dt>
-        <dd><strong>NFM</strong> for FM voice (most VHF/UHF repeaters and simplex). <strong>AM</strong> for AM voice (e.g. aviation band). Leaving it unset defaults to AM (the engine's own default) — the Repeaters tab shows this truthfully rather than silently picking one for you.</dd>
+        <dd><strong>NFM</strong> for FM voice (most VHF/UHF repeaters and simplex). <strong>AM</strong> for AM voice (e.g. aviation band). Leaving it unset defaults to AM (the engine's own default) — the Frequencies tab shows this truthfully rather than silently picking one for you.</dd>
         <dt>Squelch level (0–9)</dt>
         <dd>Just like the SQL knob on a handheld radio. <code>0</code> = always open (you hear noise between transmissions too). Higher = requires a stronger signal to open. <code>5</code> is close to the engine's own built-in default. If you're missing weak signals, lower it; if it's constantly open on noise, raise it.</dd>
         <dt>Record to file vs. Stream to Icecast</dt>
@@ -148,7 +148,15 @@
 
     <div class="panel">
       <h2>Recordings</h2>
-      <p>Files are named with the frequency first (e.g. <code>145.400_MyRepeater_...</code>) so they're easy to identify at a glance in a file browser. <strong>Open folder</strong> opens the recordings directory in the file manager of whichever machine is running this GUI — only useful when that's the machine you're physically looking at. <strong>Delete</strong> permanently removes a clip; there's a confirmation, and there is no undo.</p>
+      <p>Each frequency gets its own folder, named after itself, with the engine's own date-based folders inside it:</p>
+      <pre>airband-recordings/
+  145.400/
+    2026/09/30/
+      145.400_MyRepeater_20260930_143012.mp3
+  120.225/
+    2026/09/30/
+      120.225_Ground_20260930_091500.mp3</pre>
+      <p>Frequency-first-then-date like this groups everything for one frequency together, which is convenient for e.g. a script that processes "today's clips for frequency X" as a batch. The filename itself also leads with the frequency, so a clip stays identifiable even moved out of this structure entirely. A channel created before this layout existed keeps its old directory/filename until you click "↻ Use frequency-based directory + filename" on its card — nothing is renamed silently. <strong>Open folder</strong> opens the recordings directory in the file manager of whichever machine is running this GUI — only useful when that's the machine you're physically looking at. <strong>Delete</strong> permanently removes a clip; there's a confirmation, and there is no undo.</p>
     </div>
 
     <div class="panel">
