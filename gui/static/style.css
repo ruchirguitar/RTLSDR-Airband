@@ -178,6 +178,8 @@ select, input[type=text], input[type=number] {
 .card-fields .field { grid-column: span 1; }
 .card-fields .field.full { grid-column: span 2; }
 
+.squelch-row input[type=range] { width: 100%; accent-color: var(--accent); }
+
 .output-type-row { display: flex; gap: 8px; margin: 14px 0 12px; }
 .output-type-row button {
   flex: 1;

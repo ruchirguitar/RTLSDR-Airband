@@ -203,6 +203,55 @@ function makeNumberField(labelText, obj, key, type) {
   return wrap;
 }
 
+// Handheld-radio-style squelch: a 0-9 level like a Baofeng's SQL knob, mapped
+// onto the engine's squelch_snr_threshold (dB above the measured noise floor).
+// 0 = "always open" (the engine's own meaning for squelch_snr_threshold=0);
+// the engine's built-in auto default is 9.54 dB, i.e. level 5 on this scale.
+const SQUELCH_LEVEL_DB_STEP = 2;
+const SQUELCH_AUTO_DEFAULT_DB = 9.54;
+
+function squelchLevelToDb(level) {
+  return level * SQUELCH_LEVEL_DB_STEP;
+}
+function squelchDbToLevel(db) {
+  return Math.max(0, Math.min(9, Math.round(db / SQUELCH_LEVEL_DB_STEP)));
+}
+
+function makeSquelchField(ch) {
+  const wrap = makeEl("div", "field full");
+  if (isScalar(ch.squelch_threshold)) {
+    wrap.appendChild(makeEl("label", null, "Squelch"));
+    wrap.appendChild(makeEl("p", "muted", "This channel uses an advanced absolute squelch_threshold (dBFS) — edit it in the Advanced tab."));
+    return wrap;
+  }
+
+  const currentDb = isScalar(ch.squelch_snr_threshold) ? ch.squelch_snr_threshold.value : SQUELCH_AUTO_DEFAULT_DB;
+  const currentLevel = squelchDbToLevel(currentDb);
+  const labelEl = makeEl("label", null, "");
+  const setLabel = (level) => {
+    labelEl.textContent = `Squelch level (like a handheld radio) · ${level === 0 ? "0 — always open" : level}`;
+  };
+  setLabel(currentLevel);
+  wrap.appendChild(labelEl);
+
+  const row = makeEl("div", "squelch-row");
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = "9";
+  slider.step = "1";
+  slider.value = currentLevel;
+  slider.oninput = () => {
+    const level = parseInt(slider.value, 10);
+    setLabel(level);
+    scalarSet(ch, "squelch_snr_threshold", "float", squelchLevelToDb(level));
+  };
+  row.appendChild(slider);
+  wrap.appendChild(row);
+  wrap.appendChild(makeEl("p", "muted", "0 = hear everything (noise too) · 9 = only the strongest signals open it"));
+  return wrap;
+}
+
 function makeDefaultFileOutput(name) {
   return {
     type: scalar("string", "file"),
@@ -272,20 +321,7 @@ function makeRepeaterCard(device, ch, idx) {
   card.appendChild(freqRow);
 
   const fieldsWrap = makeEl("div", "card-fields");
-  const squelchField = makeEl("div", "field full");
-  squelchField.appendChild(makeEl("label", null, "Squelch threshold · dB above noise (blank = auto)"));
-  const squelchInput = document.createElement("input");
-  squelchInput.type = "number";
-  squelchInput.step = "0.5";
-  squelchInput.value = isScalar(ch.squelch_threshold) ? ch.squelch_threshold.value : "";
-  squelchInput.oninput = () => {
-    const raw = squelchInput.value.trim();
-    if (raw === "") { delete ch.squelch_threshold; return; }
-    const n = parseFloat(raw);
-    scalarSet(ch, "squelch_threshold", "float", Number.isNaN(n) ? 0 : n);
-  };
-  squelchField.appendChild(squelchInput);
-  fieldsWrap.appendChild(squelchField);
+  fieldsWrap.appendChild(makeSquelchField(ch));
   card.appendChild(fieldsWrap);
 
   if (!Array.isArray(ch.outputs)) ch.outputs = [];
