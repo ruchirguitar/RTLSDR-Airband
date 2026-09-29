@@ -15,10 +15,21 @@
   <div class="header-controls">
     <select id="config-select" title="Config file"></select>
     <button id="btn-new-config" title="Create a new config file">+ New</button>
-    <button id="btn-save" class="primary">Save</button>
-    <div class="status-pill" id="status-pill">unknown</div>
+    <button id="btn-save">Save</button>
   </div>
 </header>
+
+<div class="control-bar">
+  <div class="control-bar-status">
+    <span class="status-pill" id="status-pill">unknown</span>
+    <span id="proc-status" class="muted"></span>
+  </div>
+  <div class="control-bar-buttons">
+    <button id="btn-start" class="primary" title="Saves the config, then starts the engine">Start</button>
+    <button id="btn-restart" title="Saves the config, then restarts the engine">Restart</button>
+    <button id="btn-stop">Stop</button>
+  </div>
+</div>
 <div id="save-msg" class="save-msg"></div>
 
 <nav class="tabs">
@@ -59,8 +70,9 @@
   </section>
 
   <section id="tab-process" class="tab-panel">
+    <p class="muted">Start / Stop / Restart moved to the bar under the header — it's always there, on every tab. This tab is for settings and the live log.</p>
     <div class="panel">
-      <div class="panel-head"><h2>Process control</h2></div>
+      <div class="panel-head"><h2>Engine settings</h2></div>
       <label class="inline-label">Binary path
         <input id="binary-path" type="text" placeholder="/usr/local/bin/rtl_airband">
         <button id="btn-save-binary">Save</button>
@@ -70,12 +82,6 @@
         <button id="btn-save-live-rate">Save</button>
         <span class="muted">16000 for an -DNFM=ON build, 8000 for AM-only</span>
       </label>
-      <div class="proc-buttons">
-        <button id="btn-start" class="primary">Start</button>
-        <button id="btn-stop">Stop</button>
-        <button id="btn-restart">Restart</button>
-      </div>
-      <div id="proc-status" class="muted"></div>
     </div>
     <pre id="log-view"></pre>
   </section>

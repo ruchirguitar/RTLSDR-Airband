@@ -61,6 +61,21 @@ header h1 { font-size: 26px; margin: 4px 0 0; }
 }
 .status-pill.running { color: var(--accent); border-color: var(--accent); }
 
+.control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 28px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.control-bar-status { display: flex; align-items: center; gap: 10px; }
+.control-bar-buttons { display: flex; gap: 8px; }
+.control-bar-buttons button { min-width: 84px; }
+
 nav.tabs {
   display: flex;
   gap: 4px;
@@ -212,8 +227,6 @@ select, input[type=text], input[type=number] {
   margin-bottom: 10px;
 }
 .inline-label input[type=text] { flex: 1; min-width: 220px; }
-
-.proc-buttons { display: flex; gap: 8px; margin: 12px 0; }
 
 pre#log-view {
   background: #000;

@@ -679,15 +679,22 @@ document.getElementById("btn-new-config").addEventListener("click", async () => 
   }
 });
 
+// Shared by the header Save button and the Start/Restart buttons, which save
+// first - restarting the engine against a stale on-disk config is never what
+// you want, and saving unchanged content back is harmless.
+async function saveConfig() {
+  const data = await api("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data: configData }),
+  });
+  rawText = data.raw;
+  document.getElementById("raw-editor").value = rawText;
+}
+
 document.getElementById("btn-save").addEventListener("click", async () => {
   try {
-    const data = await api("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: configData }),
-    });
-    rawText = data.raw;
-    document.getElementById("raw-editor").value = rawText;
+    await saveConfig();
     setMsg("save-msg", "Saved", false);
   } catch (err) {
     setMsg("save-msg", err.message, true);
@@ -843,6 +850,7 @@ document.getElementById("btn-start").addEventListener("click", async () => {
   logSince = 0;
   document.getElementById("log-view").textContent = "";
   try {
+    await saveConfig();
     await api("/api/process/start", { method: "POST" });
   } catch (err) {
     alert(err.message);
@@ -857,6 +865,7 @@ document.getElementById("btn-restart").addEventListener("click", async () => {
   logSince = 0;
   document.getElementById("log-view").textContent = "";
   try {
+    await saveConfig();
     await api("/api/process/restart", { method: "POST" });
   } catch (err) {
     alert(err.message);
@@ -868,16 +877,19 @@ async function refreshStatus() {
   const status = await api("/api/process/status");
   const pill = document.getElementById("status-pill");
   const procStatus = document.getElementById("proc-status");
+  document.getElementById("btn-start").disabled = status.running;
+  document.getElementById("btn-restart").disabled = !status.running;
+  document.getElementById("btn-stop").disabled = !status.running;
   if (status.running) {
     pill.textContent = `running · pid ${status.pid}`;
     pill.className = "status-pill running";
-    procStatus.textContent = `Running, PID ${status.pid}`;
+    procStatus.textContent = "";
   } else {
     pill.textContent = "stopped";
     pill.className = "status-pill";
     procStatus.textContent = status.last_exit_code !== null
-      ? `Stopped (last exit code ${status.last_exit_code})`
-      : "Stopped";
+      ? `last exit code ${status.last_exit_code}`
+      : "";
   }
 }
 
