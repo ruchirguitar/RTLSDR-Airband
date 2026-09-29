@@ -341,55 +341,69 @@ function makeRepeaterCard(device, ch, idx) {
   if (!Array.isArray(ch.outputs)) ch.outputs = [];
   const freqNow = scalarGet(ch, "freq", 0);
   if (ch.outputs.length === 0) ch.outputs.push(makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow));
-  const out = ch.outputs[0];
-  const outType = scalarGet(out, "type", "file");
+
+  // File and Icecast are independent toggles, not either/or - the engine
+  // happily writes both from one channel (see the "+N more outputs" note
+  // elsewhere for other output types, e.g. the live-listening udp_stream one).
+  const findOutput = (type) => ch.outputs.find((o) => scalarGet(o, "type", "") === type);
+  const fileOutput = findOutput("file");
+  const icecastOutput = findOutput("icecast");
 
   const typeRow = makeEl("div", "output-type-row");
   const fileBtn = document.createElement("button");
   fileBtn.type = "button";
   fileBtn.textContent = "Record to file";
-  fileBtn.className = outType === "file" ? "selected" : "";
+  fileBtn.className = fileOutput ? "selected" : "";
   fileBtn.onclick = () => {
-    if (outType !== "file") { ch.outputs[0] = makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow); renderRepeatersTab(); }
+    if (fileOutput) ch.outputs.splice(ch.outputs.indexOf(fileOutput), 1);
+    else ch.outputs.push(makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow));
+    renderRepeatersTab();
   };
   const icecastBtn = document.createElement("button");
   icecastBtn.type = "button";
   icecastBtn.textContent = "Stream to Icecast";
-  icecastBtn.className = outType === "icecast" ? "selected" : "";
+  icecastBtn.className = icecastOutput ? "selected" : "";
   icecastBtn.onclick = () => {
-    if (outType !== "icecast") { ch.outputs[0] = makeDefaultIcecastOutput(); renderRepeatersTab(); }
+    if (icecastOutput) ch.outputs.splice(ch.outputs.indexOf(icecastOutput), 1);
+    else ch.outputs.push(makeDefaultIcecastOutput());
+    renderRepeatersTab();
   };
   typeRow.appendChild(fileBtn);
   typeRow.appendChild(icecastBtn);
   card.appendChild(typeRow);
 
-  if (ch.outputs.length > 1) {
-    card.appendChild(makeEl("p", "muted", `+${ch.outputs.length - 1} more output(s) on this channel — edit in Advanced tab`));
+  const recognizedCount = (fileOutput ? 1 : 0) + (icecastOutput ? 1 : 0) + (findUdpOutput(ch) ? 1 : 0);
+  if (ch.outputs.length > recognizedCount) {
+    card.appendChild(makeEl("p", "muted", `+${ch.outputs.length - recognizedCount} more output(s) on this channel — edit in Advanced tab`));
   }
 
-  const outFields = makeEl("div", "card-fields");
-  if (outType === "file") {
-    outFields.appendChild(makeTextField("Directory", out, "directory", true));
-    outFields.appendChild(makeTextField("Filename prefix", out, "filename_template", true));
+  if (fileOutput) {
+    const fileFields = makeEl("div", "card-fields");
+    fileFields.appendChild(makeTextField("Directory", fileOutput, "directory", true));
+    fileFields.appendChild(makeTextField("Filename prefix", fileOutput, "filename_template", true));
     const resetRow = makeEl("div", "field full");
     const resetBtn = document.createElement("button");
     resetBtn.type = "button";
     resetBtn.textContent = "↻ Use frequency-based directory + filename";
     resetBtn.title = "Recomputes Directory and Filename prefix from this card's current frequency and name - only runs when you click it, never silently";
     resetBtn.onclick = () => {
-      ch.outputs[0] = makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow);
+      ch.outputs[ch.outputs.indexOf(fileOutput)] = makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow);
       renderRepeatersTab();
     };
     resetRow.appendChild(resetBtn);
-    outFields.appendChild(resetRow);
-  } else {
-    outFields.appendChild(makeTextField("Icecast server", out, "server", true));
-    outFields.appendChild(makeNumberField("Port", out, "port", "int"));
-    outFields.appendChild(makeTextField("Mountpoint", out, "mountpoint"));
-    outFields.appendChild(makeTextField("Username", out, "username"));
-    outFields.appendChild(makeTextField("Password", out, "password"));
+    fileFields.appendChild(resetRow);
+    card.appendChild(fileFields);
   }
-  card.appendChild(outFields);
+
+  if (icecastOutput) {
+    const icecastFields = makeEl("div", "card-fields");
+    icecastFields.appendChild(makeTextField("Icecast server", icecastOutput, "server", true));
+    icecastFields.appendChild(makeNumberField("Port", icecastOutput, "port", "int"));
+    icecastFields.appendChild(makeTextField("Mountpoint", icecastOutput, "mountpoint"));
+    icecastFields.appendChild(makeTextField("Username", icecastOutput, "username"));
+    icecastFields.appendChild(makeTextField("Password", icecastOutput, "password"));
+    card.appendChild(icecastFields);
+  }
 
   const liveBlock = makeEl("div", "live-block");
   const liveLabel = document.createElement("label");
