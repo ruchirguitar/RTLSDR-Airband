@@ -1,0 +1,2 @@
+flask>=3.0
+libconf>=2.0.1

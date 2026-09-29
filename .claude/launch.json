@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rtlsdr-airband-gui",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["gui/app.py"],
+      "port": 5050
+    }
+  ]
+}

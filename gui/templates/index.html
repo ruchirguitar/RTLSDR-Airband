@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTLSDR-Airband Config GUI</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>RTLSDR-Airband</h1>
+  <div class="config-picker">
+    <select id="config-select"></select>
+    <button id="btn-new-config" title="Create a new config file">+ New</button>
+  </div>
+  <div class="status-pill" id="status-pill">unknown</div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="visual">Visual Editor</button>
+  <button class="tab-btn" data-tab="raw">Raw Config</button>
+  <button class="tab-btn" data-tab="process">Process Control</button>
+</nav>
+
+<main>
+  <section id="tab-visual" class="tab-panel active">
+    <div class="toolbar">
+      <button id="btn-save-visual" class="primary">Save Config</button>
+      <span id="visual-save-msg" class="save-msg"></span>
+    </div>
+    <div id="visual-editor"></div>
+  </section>
+
+  <section id="tab-raw" class="tab-panel">
+    <div class="toolbar">
+      <button id="btn-validate-raw">Validate</button>
+      <button id="btn-save-raw" class="primary">Save Raw</button>
+      <span id="raw-save-msg" class="save-msg"></span>
+    </div>
+    <textarea id="raw-editor" spellcheck="false"></textarea>
+  </section>
+
+  <section id="tab-process" class="tab-panel">
+    <div class="process-controls">
+      <label>Binary path
+        <input id="binary-path" type="text" placeholder="/usr/local/bin/rtl_airband">
+        <button id="btn-save-binary">Save</button>
+      </label>
+      <div class="proc-buttons">
+        <button id="btn-start" class="primary">Start</button>
+        <button id="btn-stop">Stop</button>
+        <button id="btn-restart">Restart</button>
+      </div>
+      <div id="proc-status"></div>
+    </div>
+    <pre id="log-view"></pre>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
