@@ -16,6 +16,7 @@
     <select id="config-select" title="Config file"></select>
     <button id="btn-new-config" title="Create a new config file">+ New</button>
     <button id="btn-save">Save</button>
+    <button id="btn-theme-toggle" title="Switch dark/light theme">🌙</button>
   </div>
 </header>
 
@@ -38,6 +39,7 @@
   <button class="tab-btn" data-tab="process">Process Control</button>
   <button class="tab-btn" data-tab="advanced">Advanced</button>
   <button class="tab-btn" data-tab="raw">Raw Config</button>
+  <button class="tab-btn" data-tab="help">Help / FAQ</button>
 </nav>
 
 <main>
@@ -45,25 +47,30 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Receiver</h2>
-        <span class="muted">One SDR, tuned once, listens to every repeater below</span>
+        <span class="muted">One SDR, tuned once, listens to every frequency below</span>
       </div>
       <div class="device-grid" id="device-grid"></div>
+      <p class="muted bandwidth-note">Every frequency below must fall within this receiver's tuned bandwidth around <strong>Center frequency</strong> — roughly ±1.2 MHz either side by default, less reliable near the edges. Any frequency works here, not just repeaters, but they all share one tuner. See <a href="#" data-tab-link="help">Help</a> for how to pick a center frequency.</p>
     </section>
 
     <div class="cards" id="repeater-cards"></div>
-    <button id="btn-add-repeater" class="add-repeater">+ Add repeater</button>
+    <button id="btn-add-frequency" class="add-repeater">+ Add frequency</button>
   </section>
 
   <section id="tab-recordings" class="tab-panel">
     <div class="panel">
       <div class="panel-head">
         <h2>Recording archive</h2>
-        <button id="btn-refresh-recordings">Refresh</button>
+        <div class="button-row">
+          <button id="btn-open-recordings-dir">Open folder</button>
+          <button id="btn-refresh-recordings">Refresh</button>
+        </div>
       </div>
       <label class="inline-label">Recordings folder
         <input id="recordings-dir" type="text">
         <button id="btn-save-recordings-dir">Save</button>
       </label>
+      <p class="muted">"Open folder" opens it in the file manager on whichever machine is running this GUI — only useful when that's the same machine you're looking at, not over an SSH tunnel.</p>
       <p class="muted" id="recordings-meta"></p>
       <div id="recordings-list"></div>
     </div>
@@ -99,7 +106,93 @@
     </div>
     <textarea id="raw-editor" spellcheck="false"></textarea>
   </section>
+
+  <section id="tab-help" class="tab-panel help-panel">
+    <div class="panel">
+      <h2>What is this?</h2>
+      <p>A local web app for running RTLSDR-Airband as a frequency recorder: add any frequency as a card (not just repeaters — any AM or NFM signal within range), listen to it live in your browser, and browse what got recorded. One SDR dongle, tuned to one center frequency, listens to everything below that fits in its bandwidth.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Receiver settings</h2>
+      <dl>
+        <dt>Device index</dt>
+        <dd>Which physical RTL-SDR dongle to use, if more than one is plugged in. <code>0</code> = the first one found. One dongle only? Leave it at <code>0</code>.</dd>
+        <dt>Gain · dB</dt>
+        <dd>Receiver amplification. Higher isn't always better — too high adds noise/overload distortion, too low buries weak signals. 20–40 dB is a common starting range; adjust by ear.</dd>
+        <dt>Center frequency · MHz</dt>
+        <dd>Where the dongle actually tunes. <strong>Every frequency you add must fall within roughly ±1.2 MHz of this</strong> (the receiver's usable bandwidth, a bit less reliable near the edges) — pick a center frequency in the middle of the spread of frequencies you want to monitor. Two frequencies 2 MHz apart won't both fit; you'd need a second dongle.</dd>
+        <dt>Correction · ppm</dt>
+        <dd>Crystal frequency correction for your specific dongle, in parts per million. <code>0</code> is fine to start; if received frequencies sound consistently offset, look up your dongle's calibration (e.g. via <code>kalibrate-rtl</code>) and set it here.</dd>
+      </dl>
+    </div>
+
+    <div class="panel">
+      <h2>Per-frequency settings</h2>
+      <dl>
+        <dt>Modulation</dt>
+        <dd><strong>NFM</strong> for FM voice (most VHF/UHF repeaters and simplex). <strong>AM</strong> for AM voice (e.g. aviation band). Leaving it unset defaults to AM (the engine's own default) — the Repeaters tab shows this truthfully rather than silently picking one for you.</dd>
+        <dt>Squelch level (0–9)</dt>
+        <dd>Just like the SQL knob on a handheld radio. <code>0</code> = always open (you hear noise between transmissions too). Higher = requires a stronger signal to open. <code>5</code> is close to the engine's own built-in default. If you're missing weak signals, lower it; if it's constantly open on noise, raise it.</dd>
+        <dt>Record to file vs. Stream to Icecast</dt>
+        <dd><strong>Record to file</strong> saves an audio clip each time squelch opens, into dated subfolders. <strong>Stream to Icecast</strong> sends live audio to an Icecast server (e.g. for LiveATC-style public streaming) instead of saving locally.</dd>
+        <dt>Enable live listening</dt>
+        <dd>Lets you click "Listen live" and hear that frequency in your browser in real time, in addition to whatever it's already recording/streaming. Needs Save + Restart to take effect (it adds a new output to the config, and the engine only reads config at startup).</dd>
+      </dl>
+    </div>
+
+    <div class="panel">
+      <h2>Live listening &amp; sample rate</h2>
+      <p>Live audio is carried over a local UDP connection from the engine to this GUI, then played in your browser via Web Audio — so there's a short buffering delay, not zero-latency audio. One setting has to match your build: <strong>Live audio sample rate</strong> (Process Control tab) should be <code>16000</code> if RTLSDR-Airband was built with <code>-DNFM=ON</code>, or <code>8000</code> for an AM-only build. If live audio sounds sped up, slowed down, or pitch-shifted, this is almost always why.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Recordings</h2>
+      <p>Files are named with the frequency first (e.g. <code>145.400_MyRepeater_...</code>) so they're easy to identify at a glance in a file browser. <strong>Open folder</strong> opens the recordings directory in the file manager of whichever machine is running this GUI — only useful when that's the machine you're physically looking at. <strong>Delete</strong> permanently removes a clip; there's a confirmation, and there is no undo.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Why isn't there a waterfall / spectrum display?</h2>
+      <p>The engine only outputs demodulated audio today, nothing exposes raw spectrum data, and a single RTL-SDR can't be shared with a second process to get one another way. Adding a waterfall means adding a new capability to the C++ engine itself, not just this GUI — a bigger, separate project. See the <a href="https://github.com/ruchirguitar/RTLSDR-Airband/wiki/Troubleshooting" target="_blank" rel="noopener">wiki</a> for more.</p>
+    </div>
+
+    <div class="panel">
+      <h2>More</h2>
+      <p>Full documentation, troubleshooting, and the "why" behind some of these decisions live on the <a href="https://github.com/ruchirguitar/RTLSDR-Airband/wiki" target="_blank" rel="noopener">project wiki</a>.</p>
+    </div>
+  </section>
 </main>
+
+<footer class="credits">
+  <svg class="flag" viewBox="0 0 30 20" width="24" height="16" aria-label="Flag of India">
+    <rect width="30" height="20" fill="#fff"/>
+    <rect width="30" height="6.67" fill="#FF9933"/>
+    <rect y="13.33" width="30" height="6.67" fill="#138808"/>
+    <circle cx="15" cy="10" r="3" fill="none" stroke="#000080" stroke-width="0.4"/>
+    <circle cx="15" cy="10" r="0.4" fill="#000080"/>
+    <g stroke="#000080" stroke-width="0.18">
+      <line x1="15" y1="7" x2="15" y2="13"/>
+      <line x1="12" y1="10" x2="18" y2="10"/>
+      <line x1="12.88" y1="7.88" x2="17.12" y2="12.12"/>
+      <line x1="17.12" y1="7.88" x2="12.88" y2="12.12"/>
+      <line x1="13.4" y1="7.4" x2="16.6" y2="12.6"/>
+      <line x1="16.6" y1="7.4" x2="13.4" y2="12.6"/>
+      <line x1="13.9" y1="7.15" x2="16.1" y2="12.85"/>
+      <line x1="16.1" y1="7.15" x2="13.9" y2="12.85"/>
+      <line x1="14.5" y1="7.02" x2="15.5" y2="12.98"/>
+      <line x1="15.5" y1="7.02" x2="14.5" y2="12.98"/>
+      <line x1="12.4" y1="8.4" x2="17.6" y2="11.6"/>
+      <line x1="17.6" y1="8.4" x2="12.4" y2="11.6"/>
+      <line x1="12.15" y1="8.9" x2="17.85" y2="11.1"/>
+      <line x1="17.85" y1="8.9" x2="12.15" y2="11.1"/>
+      <line x1="12.02" y1="9.5" x2="17.98" y2="10.5"/>
+      <line x1="17.98" y1="9.5" x2="12.02" y2="10.5"/>
+    </g>
+  </svg>
+  <span>Built by <strong>Ruchir · VU22PR</strong> · India</span>
+  <span class="dot">·</span>
+  <a href="https://www.giar.org" target="_blank" rel="noopener">GIAR — Gujarat Institute of Amateur Radio</a>
+</footer>
 
 <script src="/static/app.js"></script>
 </body>

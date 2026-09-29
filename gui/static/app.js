@@ -252,11 +252,19 @@ function makeSquelchField(ch) {
   return wrap;
 }
 
-function makeDefaultFileOutput(name) {
+// Leads the filename with the frequency (MHz, 3 decimals) so recorded clips
+// are easy to identify in a file browser without opening them.
+function formatFreqForFilename(mhz) {
+  return (typeof mhz === "number" && !Number.isNaN(mhz) ? mhz : 0).toFixed(3);
+}
+
+function makeDefaultFileOutput(name, freqMhz) {
+  const namePart = (name || "").trim().replace(/\s+/g, "_");
+  const template = namePart ? `${formatFreqForFilename(freqMhz)}_${namePart}` : formatFreqForFilename(freqMhz);
   return {
     type: scalar("string", "file"),
     directory: scalar("string", lastKnownRecordingsDir),
-    filename_template: scalar("string", (name || "channel").trim().replace(/\s+/g, "_") || "channel"),
+    filename_template: scalar("string", template),
     dated_subdirectories: scalar("bool", true),
     split_on_transmission: scalar("bool", true),
   };
@@ -279,12 +287,12 @@ function makeRepeaterCard(device, ch, idx) {
   const nameInput = document.createElement("input");
   nameInput.className = "name-input";
   nameInput.type = "text";
-  nameInput.placeholder = `Repeater ${idx + 1}`;
+  nameInput.placeholder = `Frequency ${idx + 1}`;
   nameInput.value = scalarGet(ch, "label", "");
   nameInput.oninput = () => scalarSet(ch, "label", "string", nameInput.value);
   top.appendChild(nameInput);
   const removeBtn = makeEl("button", "remove-btn", "✕");
-  removeBtn.title = "Remove this repeater";
+  removeBtn.title = "Remove this frequency";
   removeBtn.onclick = () => {
     if (findUdpOutput(ch)) stopListening(channelLivePort(ch, idx));
     device.channels.splice(idx, 1);
@@ -325,7 +333,8 @@ function makeRepeaterCard(device, ch, idx) {
   card.appendChild(fieldsWrap);
 
   if (!Array.isArray(ch.outputs)) ch.outputs = [];
-  if (ch.outputs.length === 0) ch.outputs.push(makeDefaultFileOutput(nameInput.value || `channel${idx + 1}`));
+  const freqNow = scalarGet(ch, "freq", 0);
+  if (ch.outputs.length === 0) ch.outputs.push(makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow));
   const out = ch.outputs[0];
   const outType = scalarGet(out, "type", "file");
 
@@ -335,7 +344,7 @@ function makeRepeaterCard(device, ch, idx) {
   fileBtn.textContent = "Record to file";
   fileBtn.className = outType === "file" ? "selected" : "";
   fileBtn.onclick = () => {
-    if (outType !== "file") { ch.outputs[0] = makeDefaultFileOutput(nameInput.value || `channel${idx + 1}`); renderRepeatersTab(); }
+    if (outType !== "file") { ch.outputs[0] = makeDefaultFileOutput(nameInput.value || `Frequency ${idx + 1}`, freqNow); renderRepeatersTab(); }
   };
   const icecastBtn = document.createElement("button");
   icecastBtn.type = "button";
@@ -449,13 +458,13 @@ function renderRepeatersTab() {
   device.channels.forEach((ch, idx) => cardsEl.appendChild(makeRepeaterCard(device, ch, idx)));
 }
 
-document.getElementById("btn-add-repeater").addEventListener("click", () => {
+document.getElementById("btn-add-frequency").addEventListener("click", () => {
   const device = normalizeDevice();
   const idx = device.channels.length;
   device.channels.push({
     freq: scalar("float", 0),
     modulation: scalar("string", "nfm"),
-    outputs: [makeDefaultFileOutput(`repeater${idx + 1}`)],
+    outputs: [makeDefaultFileOutput(`Frequency ${idx + 1}`, 0)],
   });
   renderRepeatersTab();
 });
@@ -775,6 +784,19 @@ async function fetchAndRenderRecordings() {
       link.download = r.name;
       link.textContent = "Download";
       row.appendChild(link);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "danger";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.onclick = async () => {
+        if (!confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
+        try {
+          await api(`/api/recordings/${r.path.split("/").map(encodeURIComponent).join("/")}`, { method: "DELETE" });
+          fetchAndRenderRecordings();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      row.appendChild(deleteBtn);
       list.appendChild(row);
     });
   } catch (err) {
@@ -784,6 +806,13 @@ async function fetchAndRenderRecordings() {
 }
 
 document.getElementById("btn-refresh-recordings").addEventListener("click", fetchAndRenderRecordings);
+document.getElementById("btn-open-recordings-dir").addEventListener("click", async () => {
+  try {
+    await api("/api/recordings/open", { method: "POST" });
+  } catch (err) {
+    alert(err.message);
+  }
+});
 document.getElementById("btn-save-recordings-dir").addEventListener("click", async () => {
   const dir = document.getElementById("recordings-dir").value;
   await api("/api/settings", {
@@ -798,21 +827,59 @@ document.getElementById("btn-save-recordings-dir").addEventListener("click", asy
 // ================================================================
 // Tabs
 // ================================================================
+function activateTab(tabName) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  if (!btn) return;
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("tab-" + tabName).classList.add("active");
+  if (tabName === "process") startLogPolling();
+  else stopLogPolling();
+  // Repeaters and Advanced both edit the same configData in place, but each
+  // only re-renders itself on its own edits - re-render whichever tab we're
+  // entering so it picks up changes made from the other one.
+  if (tabName === "recordings") fetchAndRenderRecordings();
+  else if (tabName === "repeaters") renderRepeatersTab();
+  else if (tabName === "advanced") renderRoot();
+}
+
 document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "process") startLogPolling();
-    else stopLogPolling();
-    // Repeaters and Advanced both edit the same configData in place, but each
-    // only re-renders itself on its own edits - re-render whichever tab we're
-    // entering so it picks up changes made from the other one.
-    if (btn.dataset.tab === "recordings") fetchAndRenderRecordings();
-    else if (btn.dataset.tab === "repeaters") renderRepeatersTab();
-    else if (btn.dataset.tab === "advanced") renderRoot();
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+});
+
+// Inline links (e.g. "See Help for how to pick a center frequency") that jump
+// straight to another tab instead of naming it and leaving you to find it.
+document.querySelectorAll("[data-tab-link]").forEach((link) => {
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    activateTab(link.dataset.tabLink);
   });
+});
+
+// ================================================================
+// Theme
+// ================================================================
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.dataset.theme = "light";
+    document.getElementById("btn-theme-toggle").textContent = "☀️";
+  } else {
+    delete document.documentElement.dataset.theme;
+    document.getElementById("btn-theme-toggle").textContent = "🌙";
+  }
+}
+
+(function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem("theme"); } catch (_e) { /* private browsing etc. */ }
+  applyTheme(saved === "light" ? "light" : "dark");
+})();
+
+document.getElementById("btn-theme-toggle").addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  applyTheme(next);
+  try { localStorage.setItem("theme", next); } catch (_e) { /* ignore */ }
 });
 
 // ================================================================

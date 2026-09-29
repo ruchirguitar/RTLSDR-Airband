@@ -8,6 +8,8 @@ import base64
 import json
 import os
 import re
+import shutil
+import subprocess
 import time
 
 import libconf
@@ -227,6 +229,50 @@ def list_recordings():
                 })
     entries.sort(key=lambda e: e["mtime"], reverse=True)
     return jsonify({"base_dir": base_dir, "exists": os.path.isdir(base_dir), "recordings": entries})
+
+
+def folder_opener_command(path):
+    """Picks a command to open `path` in the desktop file manager of whatever
+    machine this server process is running on. Returns None if none is found
+    (e.g. a headless box) - opening a folder only makes sense when the GUI
+    runs directly on a machine with its own desktop, not over an SSH tunnel
+    from a remote client."""
+    for candidate in ("xdg-open", "open"):  # Linux, then macOS
+        if shutil.which(candidate):
+            return [candidate, path]
+    if os.name == "nt" and shutil.which("explorer"):
+        return ["explorer", path]
+    return None
+
+
+@app.post("/api/recordings/open")
+def open_recordings_folder():
+    state = load_state()
+    base_dir = state.get("recordings_dir", DEFAULT_RECORDINGS_DIR)
+    if not os.path.isdir(base_dir):
+        return jsonify({"error": f"Folder does not exist yet: {base_dir}"}), 400
+    command = folder_opener_command(base_dir)
+    if command is None:
+        return jsonify({"error": "No file manager opener found on this machine. This only works when the GUI runs on the same machine as its own desktop, not headless/over SSH."}), 400
+    try:
+        subprocess.Popen(command)
+    except OSError as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/recordings/<path:relpath>")
+def delete_recording(relpath):
+    state = load_state()
+    base_dir = state.get("recordings_dir", DEFAULT_RECORDINGS_DIR)
+    try:
+        full = safe_recordings_subpath(base_dir, relpath)
+    except ValueError:
+        abort(403)
+    if not os.path.isfile(full):
+        abort(404)
+    os.remove(full)
+    return jsonify({"ok": True})
 
 
 @app.get("/audio/<path:relpath>")
