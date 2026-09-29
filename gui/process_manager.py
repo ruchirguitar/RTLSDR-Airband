@@ -45,8 +45,12 @@ class ProcessManager:
             self._log.clear()
             self._last_exit_code = None
             try:
+                # -F: stay in the foreground (no waterfall TUI) so this stays our
+                # direct child - without it rtl_airband double-forks into a daemon
+                # and the process we're watching exits(0) immediately, leaving us
+                # tracking a dead PID while the real engine runs on, untracked.
                 self._proc = subprocess.Popen(
-                    [binary_path, "-c", config_path],
+                    [binary_path, "-F", "-c", config_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -63,6 +67,7 @@ class ProcessManager:
                             self._log.append(line.rstrip("\n"))
                 finally:
                     proc.wait()
+                    proc.stdout.close()
                     with self._lock:
                         self._last_exit_code = proc.returncode
                         self._log.append(f"[process exited with code {proc.returncode}]")
