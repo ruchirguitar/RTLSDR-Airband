@@ -11,6 +11,28 @@ a bare JSON value, so the original libconfig type always round-trips correctly.
 """
 import libconf
 
+# libconf.dump_value() formats a Python bool with plain str.format(), which
+# yields "True"/"False" (Python's capitalization) - but real libconfig++ (what
+# rtl_airband actually links against) only recognizes the lowercase keywords
+# true/false as boolean literals; "True" is a syntax error to it. libconf's own
+# reader is case-insensitive on the way in, so writing and re-reading a config
+# with this module round-trips fine and never surfaces the bug - only the real
+# engine ever rejects it. Patched narrowly here rather than relying on
+# something a real libconfig++ user configures for themselves.
+_original_dump_value = libconf.dump_value
+
+
+def _dump_value_lowercase_bool(key, value, f, indent=0):
+    if isinstance(value, bool):
+        spaces = " " * indent
+        key_prefix = (key + " = ") if key is not None else ""
+        f.write("{}{}{}".format(spaces, key_prefix, "true" if value else "false"))
+        return
+    _original_dump_value(key, value, f, indent)
+
+
+libconf.dump_value = _dump_value_lowercase_bool
+
 
 def _wrap_scalar(v):
     if isinstance(v, bool):

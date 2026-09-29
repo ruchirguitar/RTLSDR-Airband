@@ -31,6 +31,26 @@ class ConfigIoRoundTrip(unittest.TestCase):
         out_text = config_io.dump_text(data)
         self.assertIn("145.0", out_text)
 
+    def test_boolean_dumps_lowercase_not_python_style(self):
+        # Regression test: the underlying libconf library writes Python's
+        # str(bool) ("True"/"False") by default, which real libconfig++
+        # rejects as a syntax error - only lowercase true/false parse there.
+        # Our own reader is case-insensitive, so this bug is invisible to a
+        # pure round-trip through this module and only breaks the real engine.
+        data = config_io.parse_text('x = { a = true; b = false; };')
+        out_text = config_io.dump_text(data)
+        self.assertIn("a = true;", out_text)
+        self.assertIn("b = false;", out_text)
+        self.assertNotIn("True", out_text)
+        self.assertNotIn("False", out_text)
+
+    def test_boolean_dump_does_not_corrupt_string_value(self):
+        # A *string* that happens to read "True" must stay a quoted string,
+        # not get swept up by the boolean-casing fix.
+        data = config_io.parse_text('x = "True";')
+        out_text = config_io.dump_text(data)
+        self.assertIn('x = "True";', out_text)
+
 
 class RecordingsPathSafety(unittest.TestCase):
     def test_normal_relative_path_allowed(self):
