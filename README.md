@@ -2,6 +2,36 @@
 
 ![version tag](https://img.shields.io/github/v/tag/rtl-airband/RTLSDR-Airband?label=)
 
+## This fork: a Repeater Recorder GUI
+
+This is a personal fork of [rtl-airband/RTLSDR-Airband](https://github.com/rtl-airband/RTLSDR-Airband). The engine itself is unmodified — everything below is upstream's own documentation. What's new here lives entirely in **[`gui/`](gui/)**: a local web app for running this engine as a dedicated **FM repeater recorder**, without hand-editing libconfig files.
+
+- **Repeater cards, not raw config** — add a channel, set its frequency, and pick NFM or AM from a dropdown. No `modulation = "nfm";` syntax to remember.
+- **A squelch knob, not a dB number** — a single 0–9 level like the SQL knob on a handheld radio, instead of guessing at `squelch_snr_threshold` values.
+- **Live listening in the browser** — click "Listen live" on any repeater and hear it in real time (Web Audio, streamed over a local UDP bridge) while it keeps recording.
+- **A recordings archive** — browse, play back, and download clips by date, right from the browser.
+- **Process control with a live log** — start/stop/restart the engine and watch its output, instead of managing it by hand in a terminal.
+- **Advanced / Raw Config tabs** — the full config tree and raw text editor are still there underneath, for multi-device setups, mixers, or scan mode that the simplified view doesn't cover.
+
+### Quick start
+
+```bash
+git clone https://github.com/ruchirguitar/RTLSDR-Airband.git
+cd RTLSDR-Airband
+
+# build the engine - -DNFM=ON is required for FM/repeater support
+sudo apt-get install build-essential cmake pkg-config libmp3lame-dev libshout3-dev 'libconfig++-dev' libfftw3-dev
+mkdir build && cd build && cmake -DNFM=ON ../ && make && sudo make install
+cd ..
+
+# run the GUI
+cd gui && pip install -r requirements.txt && python3 app.py
+```
+
+Open `http://127.0.0.1:5050`. See the [wiki](https://github.com/ruchirguitar/RTLSDR-Airband/wiki) for the full walkthrough.
+
+---
+
 ### CI Workflow Status
 
 <table>
