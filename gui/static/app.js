@@ -1,4 +1,4 @@
-// RTLSDR-Airband Repeater Recorder GUI - vanilla JS, no build step.
+// RTLSDR-Airband Frequency Recorder GUI - vanilla JS, no build step.
 
 let configData = {};
 let rawText = "";
@@ -321,7 +321,7 @@ function makeRepeaterCard(device, ch, idx) {
   freqRow.appendChild(makeEl("span", "unit", "MHz"));
   const modSelect = document.createElement("select");
   modSelect.className = "mod-select";
-  [["nfm", "NFM (repeater / FM)"], ["am", "AM"]].forEach(([value, label]) => {
+  [["nfm", "NFM (FM voice)"], ["am", "AM"]].forEach(([value, label]) => {
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = label;
