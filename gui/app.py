@@ -4,6 +4,7 @@ RTLSDR-Airband config editor + process manager GUI.
 Run with:  python3 app.py
 Then open  http://127.0.0.1:5050
 """
+import base64
 import json
 import os
 import re
@@ -13,6 +14,7 @@ import libconf
 from flask import Flask, abort, jsonify, request, send_from_directory
 
 import config_io
+from live_audio import LiveAudioManager
 from process_manager import ProcessManager
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,10 +22,14 @@ CONFIGS_DIR = os.path.join(BASE_DIR, "configs")
 STATE_PATH = os.path.join(BASE_DIR, "state.json")
 DEFAULT_RECORDINGS_DIR = os.path.expanduser("~/airband-recordings")
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
+LIVE_PORT_BASE = 17300
+LIVE_PORT_MAX = LIVE_PORT_BASE + 999
+DEFAULT_LIVE_SAMPLE_RATE = 16000  # matches WAVE_RATE for an -DNFM=ON build; 8000 for AM-only builds
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.json.sort_keys = False
 proc_mgr = ProcessManager()
+live_mgr = LiveAudioManager()
 
 VALID_FILENAME = re.compile(r"^[A-Za-z0-9_.-]+\.conf$")
 
@@ -37,6 +43,7 @@ def load_state():
     state.setdefault("active_config", "basic_multichannel.conf")
     state.setdefault("binary_path", "rtl_airband")
     state.setdefault("recordings_dir", DEFAULT_RECORDINGS_DIR)
+    state.setdefault("live_sample_rate", DEFAULT_LIVE_SAMPLE_RATE)
     return state
 
 
@@ -153,6 +160,9 @@ def get_settings():
     return jsonify({
         "binary_path": state.get("binary_path", "rtl_airband"),
         "recordings_dir": state.get("recordings_dir", DEFAULT_RECORDINGS_DIR),
+        "live_sample_rate": state.get("live_sample_rate", DEFAULT_LIVE_SAMPLE_RATE),
+        "live_port_base": LIVE_PORT_BASE,
+        "live_port_max": LIVE_PORT_MAX,
     })
 
 
@@ -164,8 +174,22 @@ def update_settings():
         state["binary_path"] = body["binary_path"]
     if "recordings_dir" in body:
         state["recordings_dir"] = body["recordings_dir"]
+    if "live_sample_rate" in body:
+        state["live_sample_rate"] = body["live_sample_rate"]
     save_state(state)
     return jsonify({"ok": True})
+
+
+@app.get("/api/live/<int:port>/chunk")
+def live_chunk(port):
+    if not (LIVE_PORT_BASE <= port <= LIVE_PORT_MAX):
+        abort(400)
+    since = int(request.args.get("since", 0))
+    channel = live_mgr.get(port)
+    if channel.error is not None:
+        return jsonify({"error": f"Could not listen on port {port}: {channel.error}"}), 400
+    chunk, next_offset = channel.read_since(since)
+    return jsonify({"chunk": base64.b64encode(chunk).decode("ascii"), "next": next_offset})
 
 
 def safe_recordings_subpath(base_dir, relpath):

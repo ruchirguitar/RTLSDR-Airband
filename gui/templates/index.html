@@ -65,6 +65,11 @@
         <input id="binary-path" type="text" placeholder="/usr/local/bin/rtl_airband">
         <button id="btn-save-binary">Save</button>
       </label>
+      <label class="inline-label">Live audio sample rate · Hz
+        <input id="live-sample-rate" type="number" step="1" style="max-width:110px">
+        <button id="btn-save-live-rate">Save</button>
+        <span class="muted">16000 for an -DNFM=ON build, 8000 for AM-only</span>
+      </label>
       <div class="proc-buttons">
         <button id="btn-start" class="primary">Start</button>
         <button id="btn-stop">Stop</button>

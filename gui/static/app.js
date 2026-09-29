@@ -6,6 +6,99 @@ let logSince = 0;
 let logPollTimer = null;
 let lastKnownRecordingsDir = "~/airband-recordings";
 
+// ---------- live listening ----------
+let livePortBase = 17300;
+let liveSampleRate = 16000;
+let audioCtx = null;
+// port -> { gainNode, since, nextStartTime, timer, gotAudio, lastVolume, muted, statusEl }
+const liveSessions = {};
+
+function ensureAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function findUdpOutput(ch) {
+  return (ch.outputs || []).find((o) => scalarGet(o, "type", "") === "udp_stream");
+}
+
+function channelLivePort(ch, idx) {
+  const existing = findUdpOutput(ch);
+  return existing ? scalarGet(existing, "dest_port", livePortBase + idx) : livePortBase + idx;
+}
+
+function setLiveEnabled(ch, idx, enabled) {
+  if (!Array.isArray(ch.outputs)) ch.outputs = [];
+  const existing = findUdpOutput(ch);
+  if (enabled && !existing) {
+    ch.outputs.push({
+      type: scalar("string", "udp_stream"),
+      dest_address: scalar("string", "127.0.0.1"),
+      dest_port: scalar("int", livePortBase + idx),
+    });
+  } else if (!enabled && existing) {
+    stopListening(channelLivePort(ch, idx));
+    ch.outputs.splice(ch.outputs.indexOf(existing), 1);
+  }
+}
+
+function startListening(port, initialVolume, initialMuted, statusEl) {
+  const ctx = ensureAudioCtx();
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = initialMuted ? 0 : initialVolume;
+  gainNode.connect(ctx.destination);
+  const session = {
+    gainNode,
+    since: 0,
+    nextStartTime: ctx.currentTime,
+    gotAudio: false,
+    lastVolume: initialVolume,
+    muted: initialMuted,
+    statusEl,
+  };
+  liveSessions[port] = session;
+  statusEl.textContent = "Buffering…";
+
+  session.timer = setInterval(async () => {
+    const s = liveSessions[port];
+    if (!s) return;
+    try {
+      const data = await api(`/api/live/${port}/chunk?since=${s.since}`);
+      s.since = data.next;
+      if (!data.chunk) return;
+      const bytes = Uint8Array.from(atob(data.chunk), (c) => c.charCodeAt(0));
+      const floatCount = Math.floor(bytes.length / 4);
+      if (floatCount === 0) return;
+      const floats = new Float32Array(bytes.buffer, 0, floatCount);
+      const buffer = ctx.createBuffer(1, floatCount, liveSampleRate);
+      buffer.copyToChannel(floats, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(s.gainNode);
+      const startAt = Math.max(ctx.currentTime, s.nextStartTime);
+      src.start(startAt);
+      s.nextStartTime = startAt + buffer.duration;
+      s.gotAudio = true;
+      s.statusEl.textContent = "Live";
+    } catch (err) {
+      s.statusEl.textContent = err.message;
+    }
+  }, 250);
+}
+
+function stopListening(port) {
+  const session = liveSessions[port];
+  if (!session) return;
+  clearInterval(session.timer);
+  session.gainNode.disconnect();
+  delete liveSessions[port];
+}
+
+function stopAllListening() {
+  Object.keys(liveSessions).forEach((port) => stopListening(Number(port)));
+}
+
 // ---------- generic helpers ----------
 function makeEl(tag, cls, text) {
   const el = document.createElement(tag);
@@ -143,7 +236,11 @@ function makeRepeaterCard(device, ch, idx) {
   top.appendChild(nameInput);
   const removeBtn = makeEl("button", "remove-btn", "✕");
   removeBtn.title = "Remove this repeater";
-  removeBtn.onclick = () => { device.channels.splice(idx, 1); renderRepeatersTab(); };
+  removeBtn.onclick = () => {
+    if (findUdpOutput(ch)) stopListening(channelLivePort(ch, idx));
+    device.channels.splice(idx, 1);
+    renderRepeatersTab();
+  };
   top.appendChild(removeBtn);
   card.appendChild(top);
 
@@ -231,6 +328,72 @@ function makeRepeaterCard(device, ch, idx) {
     outFields.appendChild(makeTextField("Password", out, "password"));
   }
   card.appendChild(outFields);
+
+  const liveBlock = makeEl("div", "live-block");
+  const liveLabel = document.createElement("label");
+  const liveToggle = document.createElement("input");
+  liveToggle.type = "checkbox";
+  liveToggle.checked = !!findUdpOutput(ch);
+  liveLabel.appendChild(liveToggle);
+  liveLabel.append(" Enable live listening (adds a UDP output — needs Save + Restart to take effect)");
+  liveToggle.onchange = () => { setLiveEnabled(ch, idx, liveToggle.checked); renderRepeatersTab(); };
+  liveBlock.appendChild(liveLabel);
+
+  if (findUdpOutput(ch)) {
+    const port = channelLivePort(ch, idx);
+    const existingSession = liveSessions[port];
+    const controls = makeEl("div", "live-controls");
+
+    const listenBtn = document.createElement("button");
+    listenBtn.type = "button";
+    listenBtn.textContent = existingSession ? "Stop listening" : "Listen live";
+
+    const volume = document.createElement("input");
+    volume.type = "range";
+    volume.min = "0";
+    volume.max = "1";
+    volume.step = "0.01";
+    volume.value = existingSession ? existingSession.lastVolume : 0.8;
+
+    const muteLabel = document.createElement("label");
+    const muteCb = document.createElement("input");
+    muteCb.type = "checkbox";
+    muteCb.checked = existingSession ? existingSession.muted : false;
+    muteLabel.appendChild(muteCb);
+    muteLabel.append(" Mute");
+
+    const statusEl = makeEl("span", "muted live-status", existingSession ? (existingSession.gotAudio ? "Live" : "Buffering…") : "Live listening off");
+    if (existingSession) existingSession.statusEl = statusEl;
+
+    listenBtn.onclick = () => {
+      if (liveSessions[port]) {
+        stopListening(port);
+      } else {
+        startListening(port, parseFloat(volume.value), muteCb.checked, statusEl);
+      }
+      renderRepeatersTab();
+    };
+    volume.oninput = () => {
+      const s = liveSessions[port];
+      if (!s) return;
+      s.lastVolume = parseFloat(volume.value);
+      s.gainNode.gain.value = s.muted ? 0 : s.lastVolume;
+    };
+    muteCb.onchange = () => {
+      const s = liveSessions[port];
+      if (!s) return;
+      s.muted = muteCb.checked;
+      s.gainNode.gain.value = s.muted ? 0 : s.lastVolume;
+    };
+
+    controls.appendChild(listenBtn);
+    controls.appendChild(makeEl("span", "muted", "Volume"));
+    controls.appendChild(volume);
+    controls.appendChild(muteLabel);
+    controls.appendChild(statusEl);
+    liveBlock.appendChild(controls);
+  }
+  card.appendChild(liveBlock);
 
   return card;
 }
@@ -438,6 +601,7 @@ async function loadConfigList() {
 }
 
 async function loadConfig() {
+  stopAllListening();
   const data = await api("/api/config");
   configData = data.data || {};
   rawText = data.raw || "";
@@ -599,7 +763,12 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "process") startLogPolling();
     else stopLogPolling();
+    // Repeaters and Advanced both edit the same configData in place, but each
+    // only re-renders itself on its own edits - re-render whichever tab we're
+    // entering so it picks up changes made from the other one.
     if (btn.dataset.tab === "recordings") fetchAndRenderRecordings();
+    else if (btn.dataset.tab === "repeaters") renderRepeatersTab();
+    else if (btn.dataset.tab === "advanced") renderRoot();
   });
 });
 
@@ -610,7 +779,10 @@ async function loadSettings() {
   const data = await api("/api/settings");
   document.getElementById("binary-path").value = data.binary_path || "";
   document.getElementById("recordings-dir").value = data.recordings_dir || lastKnownRecordingsDir;
+  document.getElementById("live-sample-rate").value = data.live_sample_rate || liveSampleRate;
   lastKnownRecordingsDir = data.recordings_dir || lastKnownRecordingsDir;
+  liveSampleRate = data.live_sample_rate || liveSampleRate;
+  livePortBase = data.live_port_base || livePortBase;
 }
 
 document.getElementById("btn-save-binary").addEventListener("click", async () => {
@@ -619,6 +791,16 @@ document.getElementById("btn-save-binary").addEventListener("click", async () =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ binary_path: document.getElementById("binary-path").value }),
   });
+});
+
+document.getElementById("btn-save-live-rate").addEventListener("click", async () => {
+  const rate = parseInt(document.getElementById("live-sample-rate").value, 10) || 16000;
+  await api("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ live_sample_rate: rate }),
+  });
+  liveSampleRate = rate;
 });
 
 document.getElementById("btn-start").addEventListener("click", async () => {

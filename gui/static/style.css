@@ -185,6 +185,13 @@ select, input[type=text], input[type=number] {
 }
 .output-type-row button.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 
+.live-block { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+.live-block > label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.live-controls { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.live-controls input[type=range] { flex: 1; min-width: 80px; accent-color: var(--accent); }
+.live-controls label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.live-status { min-width: 70px; }
+
 .add-repeater {
   width: 100%;
   padding: 16px;
