@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Repeater Recorder</title>
+<title>Frequency Recorder</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
   <div class="brand">
     <div class="eyebrow">RTLSDR-AIRBAND</div>
-    <h1>Repeater Recorder</h1>
+    <h1>Frequency Recorder</h1>
   </div>
   <div class="header-controls">
     <select id="config-select" title="Config file"></select>
@@ -50,7 +50,7 @@
         <span class="muted">One SDR, tuned once, listens to every frequency below</span>
       </div>
       <div class="device-grid" id="device-grid"></div>
-      <p class="muted bandwidth-note">Every frequency below must fall within this receiver's tuned bandwidth around <strong>Center frequency</strong> — roughly ±1.2 MHz either side by default, less reliable near the edges. Any frequency works here, not just repeaters, but they all share one tuner. See <a href="#" data-tab-link="help">Help</a> for how to pick a center frequency.</p>
+      <p class="muted bandwidth-note">Every frequency below must fall within this receiver's tuned bandwidth around <strong>Center frequency</strong> — roughly ±1.2 MHz either side by default, less reliable near the edges. Any AM/NFM frequency works here, but they all share one tuner. See <a href="#" data-tab-link="help">Help</a> for how to pick a center frequency.</p>
     </section>
 
     <div class="cards" id="repeater-cards"></div>
@@ -110,7 +110,12 @@
   <section id="tab-help" class="tab-panel help-panel">
     <div class="panel">
       <h2>What is this?</h2>
-      <p>A local web app for running RTLSDR-Airband as a frequency recorder: add any frequency as a card (not just repeaters — any AM or NFM signal within range), listen to it live in your browser, and browse what got recorded. One SDR dongle, tuned to one center frequency, listens to everything below that fits in its bandwidth.</p>
+      <p>A local web app for running RTLSDR-Airband as a frequency recorder: add any AM or NFM frequency as a card, listen to it live in your browser, and browse what got recorded. One SDR dongle, tuned to one center frequency, listens to everything below that fits in its bandwidth.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Responsible &amp; legal use</h2>
+      <p>This tool can record or stream whatever your receiver picks up on the frequencies you configure. Radio laws vary by country and by the type of transmission — publicly broadcast, unencrypted traffic (like amateur/ham radio) is treated very differently in most places than private, licensed commercial, encrypted, or cellular traffic. This project provides the tool only; it's on you to know and follow the rules that apply where you are and to what you're monitoring. When in doubt, check with your local telecommunications regulator.</p>
     </div>
 
     <div class="panel">
@@ -131,7 +136,7 @@
       <h2>Per-frequency settings</h2>
       <dl>
         <dt>Modulation</dt>
-        <dd><strong>NFM</strong> for FM voice (most VHF/UHF repeaters and simplex). <strong>AM</strong> for AM voice (e.g. aviation band). Leaving it unset defaults to AM (the engine's own default) — the Frequencies tab shows this truthfully rather than silently picking one for you.</dd>
+        <dd><strong>NFM</strong> for FM voice (common on VHF/UHF two-way and simplex channels). <strong>AM</strong> for AM voice (e.g. aviation band). Leaving it unset defaults to AM (the engine's own default) — the Frequencies tab shows this truthfully rather than silently picking one for you.</dd>
         <dt>Squelch level (0–9)</dt>
         <dd>Just like the SQL knob on a handheld radio. <code>0</code> = always open (you hear noise between transmissions too). Higher = requires a stronger signal to open. <code>5</code> is close to the engine's own built-in default. If you're missing weak signals, lower it; if it's constantly open on noise, raise it.</dd>
         <dt>Record to file vs. Stream to Icecast</dt>
@@ -152,7 +157,7 @@
       <pre>airband-recordings/
   145.400/
     2026/09/30/
-      145.400_MyRepeater_20260930_143012.mp3
+      145.400_MyStation_20260930_143012.mp3
   120.225/
     2026/09/30/
       120.225_Ground_20260930_091500.mp3</pre>

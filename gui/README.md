@@ -1,6 +1,6 @@
-# Repeater Recorder GUI
+# Frequency Recorder GUI
 
-A local web app for running RTLSDR-Airband as a frequency recorder: add any AM/NFM frequency as a card instead of editing libconfig, listen to it live in your browser, browse and manage recorded clips, and control the engine process — all from `http://127.0.0.1:5050`. Not limited to repeaters — any frequency your receiver's bandwidth covers works (aviation, marine, simplex, ...).
+A local web app for running RTLSDR-Airband as a frequency recorder: add any AM/NFM frequency as a card instead of editing libconfig, listen to it live in your browser, browse and manage recorded clips, and control the engine process — all from `http://127.0.0.1:5050`. Works with any frequency your receiver's bandwidth covers (amateur radio, aviation, marine, simplex, ...) — see "Responsible & legal use" below.
 
 The engine itself (`src/`) is unmodified. This is a layer on top: it reads and writes the same `.conf` files RTLSDR-Airband has always used, and starts/stops the same `rtl_airband` binary.
 
@@ -25,10 +25,10 @@ Open `http://127.0.0.1:5050`.
 
 ## Tabs
 
-**Frequencies** — the main view. One "Receiver" panel (device index, gain, center frequency, correction — assumes a single SDR) with an inline reminder that every frequency below must fall within the receiver's tuned bandwidth around Center frequency (roughly ±1.2 MHz by default), and a card per frequency ("Frequency 1", "Frequency 2", ... — not "Repeater", since any AM/NFM frequency works here):
+**Frequencies** — the main view. One "Receiver" panel (device index, gain, center frequency, correction — assumes a single SDR) with an inline reminder that every frequency below must fall within the receiver's tuned bandwidth around Center frequency (roughly ±1.2 MHz by default), and a card per frequency ("Frequency 1", "Frequency 2", ...):
 - Frequency and a modulation dropdown (NFM / AM). A channel with no modulation set at all shows as AM (the engine's real default) rather than silently picking one for you — the field is only written once you actually change it.
 - A squelch level, 0–9, like the SQL knob on a handheld radio. 0 is "always open" (the engine's own meaning for that setting), 5 is close to the engine's built-in auto default, 9 needs a strong signal. This maps to `squelch_snr_threshold` (2 dB per level) under the hood; a channel using the older absolute `squelch_threshold` (dBFS) instead shows a note pointing at the Advanced tab rather than fighting with it.
-- **Record to file** or **Stream to Icecast** per channel. New file outputs default to a per-frequency folder plus a frequency-first filename (see "Recordings archive" below) — a "↻ Use frequency-based directory + filename" button recomputes both on demand for a card created before this existed.
+- **Record to file** and/or **Stream to Icecast** — independent toggles, not either/or; click either button to turn that output on or off, each shows its own fields below it, and both can be on at once. New file outputs default to a per-frequency folder plus a frequency-first filename (see "Recordings archive" below) — a "↻ Use frequency-based directory + filename" button recomputes both on demand for a card created before this existed.
 - **Enable live listening** — adds a `udp_stream` output on a fixed local port and shows a Listen/volume/mute control once you Save and Restart. See "Live listening" below.
 
 **Recordings** — lists clips from a configurable recordings folder, grouped by date, with inline playback, download, **Open folder** (opens it in the file manager of whichever machine runs this GUI — not useful over an SSH tunnel), and **Delete** (permanent, confirmed before it happens).
@@ -61,7 +61,7 @@ New file outputs lay clips out frequency-first, then by date:
 airband-recordings/
   145.400/
     2026/09/30/
-      145.400_MyRepeater_20260930_143012.mp3
+      145.400_MyStation_20260930_143012.mp3
   120.225/
     2026/09/30/
       120.225_Ground_20260930_091500.mp3
@@ -72,6 +72,10 @@ The `2026/09/30` nesting is the engine's own `dated_subdirectories` behavior (`m
 ## Theme
 
 The 🌙/☀️ button in the header switches between dark and light; the choice is remembered per-browser (`localStorage`), not shared between devices or with the server.
+
+## Responsible & legal use
+
+This tool can record or stream whatever your receiver picks up on the frequencies you configure. Radio laws vary by country and by the type of transmission — publicly broadcast, unencrypted traffic (like amateur/ham radio) is treated very differently in most places than private, licensed commercial, encrypted, or cellular traffic. This project provides the tool only; it's on you to know and follow the rules that apply where you are and to what you're monitoring. When in doubt, check with your local telecommunications regulator. (Also in the app itself: Help / FAQ tab.)
 
 ## Known limitations
 
