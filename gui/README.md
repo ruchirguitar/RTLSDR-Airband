@@ -33,13 +33,13 @@ Open `http://127.0.0.1:5050`.
 
 **Recordings** — lists clips from a configurable recordings folder, grouped by date, with inline playback and download.
 
-**Process Control** — Start/Stop/Restart the engine, a live tailing log, the binary path, and the live-audio sample rate setting (see below).
+**Process Control** — the binary path, the live-audio sample rate setting, and a live tailing log. Start/Stop/Restart themselves live in the bar under the header, not this tab (see below).
 
 **Advanced** — the full config tree (every field RTLSDR-Airband supports: multiple devices, mixers, scan mode, ...), for anything the Repeaters tab doesn't model. Editing here or in Repeaters updates the same in-memory config either way.
 
 **Raw Config** — the config file as text, with syntax validation before saving.
 
-Any edit in any tab is just in-memory until you hit the **Save** button in the header. A saved config only takes effect on the *next* Start/Restart — RTLSDR-Airband reads its config once at startup, so a running engine won't pick up changes on its own.
+**Start / Restart / Stop**, and the running/stopped status, sit in a bar directly under the header — visible on every tab, not just Process Control, since it's the action you'll reach for constantly. Start and Restart save the current config first (RTLSDR-Airband reads its config once at startup, so restarting against a stale on-disk file would defeat the point); Stop just stops. The header's own **Save** button is there for saving without also (re)starting anything.
 
 ## Live listening
 
@@ -51,7 +51,7 @@ Live listening requires Save + Restart after checking the box, since it adds a n
 
 ## Recordings archive
 
-Points at a single folder (Process Control tab → Recordings folder). Any `.mp3`/`.wav`/`.ogg` file found anywhere under it (recursively, so `dated_subdirectories = true` output layouts work) is listed, newest first. Serving is restricted to that folder — no path traversal outside it.
+Points at a single folder (Recordings tab → Recordings folder). Any `.mp3`/`.wav`/`.ogg` file found anywhere under it (recursively, so `dated_subdirectories = true` output layouts work) is listed, newest first. Serving is restricted to that folder — no path traversal outside it.
 
 ## Known limitations
 
