@@ -3,31 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RTLSDR-Airband Config GUI</title>
+<title>Repeater Recorder</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
-  <h1>RTLSDR-Airband</h1>
-  <div class="config-picker">
-    <select id="config-select"></select>
-    <button id="btn-new-config" title="Create a new config file">+ New</button>
+  <div class="brand">
+    <div class="eyebrow">RTLSDR-AIRBAND</div>
+    <h1>Repeater Recorder</h1>
   </div>
-  <div class="status-pill" id="status-pill">unknown</div>
+  <div class="header-controls">
+    <select id="config-select" title="Config file"></select>
+    <button id="btn-new-config" title="Create a new config file">+ New</button>
+    <button id="btn-save" class="primary">Save</button>
+    <div class="status-pill" id="status-pill">unknown</div>
+  </div>
 </header>
+<div id="save-msg" class="save-msg"></div>
 
 <nav class="tabs">
-  <button class="tab-btn active" data-tab="visual">Visual Editor</button>
-  <button class="tab-btn" data-tab="raw">Raw Config</button>
+  <button class="tab-btn active" data-tab="repeaters">Repeaters</button>
+  <button class="tab-btn" data-tab="recordings">Recordings</button>
   <button class="tab-btn" data-tab="process">Process Control</button>
+  <button class="tab-btn" data-tab="advanced">Advanced</button>
+  <button class="tab-btn" data-tab="raw">Raw Config</button>
 </nav>
 
 <main>
-  <section id="tab-visual" class="tab-panel active">
-    <div class="toolbar">
-      <button id="btn-save-visual" class="primary">Save Config</button>
-      <span id="visual-save-msg" class="save-msg"></span>
+  <section id="tab-repeaters" class="tab-panel active">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Receiver</h2>
+        <span class="muted">One SDR, tuned once, listens to every repeater below</span>
+      </div>
+      <div class="device-grid" id="device-grid"></div>
+    </section>
+
+    <div class="cards" id="repeater-cards"></div>
+    <button id="btn-add-repeater" class="add-repeater">+ Add repeater</button>
+  </section>
+
+  <section id="tab-recordings" class="tab-panel">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Recording archive</h2>
+        <button id="btn-refresh-recordings">Refresh</button>
+      </div>
+      <label class="inline-label">Recordings folder
+        <input id="recordings-dir" type="text">
+        <button id="btn-save-recordings-dir">Save</button>
+      </label>
+      <p class="muted" id="recordings-meta"></p>
+      <div id="recordings-list"></div>
     </div>
+  </section>
+
+  <section id="tab-process" class="tab-panel">
+    <div class="panel">
+      <div class="panel-head"><h2>Process control</h2></div>
+      <label class="inline-label">Binary path
+        <input id="binary-path" type="text" placeholder="/usr/local/bin/rtl_airband">
+        <button id="btn-save-binary">Save</button>
+      </label>
+      <div class="proc-buttons">
+        <button id="btn-start" class="primary">Start</button>
+        <button id="btn-stop">Stop</button>
+        <button id="btn-restart">Restart</button>
+      </div>
+      <div id="proc-status" class="muted"></div>
+    </div>
+    <pre id="log-view"></pre>
+  </section>
+
+  <section id="tab-advanced" class="tab-panel">
+    <p class="muted">Full config tree — every field RTLSDR-Airband supports, for setups the Repeaters tab doesn't cover (multiple devices, mixers, scan mode, ...).</p>
     <div id="visual-editor"></div>
   </section>
 
@@ -38,22 +87,6 @@
       <span id="raw-save-msg" class="save-msg"></span>
     </div>
     <textarea id="raw-editor" spellcheck="false"></textarea>
-  </section>
-
-  <section id="tab-process" class="tab-panel">
-    <div class="process-controls">
-      <label>Binary path
-        <input id="binary-path" type="text" placeholder="/usr/local/bin/rtl_airband">
-        <button id="btn-save-binary">Save</button>
-      </label>
-      <div class="proc-buttons">
-        <button id="btn-start" class="primary">Start</button>
-        <button id="btn-stop">Stop</button>
-        <button id="btn-restart">Restart</button>
-      </div>
-      <div id="proc-status"></div>
-    </div>
-    <pre id="log-view"></pre>
   </section>
 </main>
 

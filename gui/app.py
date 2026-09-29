@@ -7,9 +7,10 @@ Then open  http://127.0.0.1:5050
 import json
 import os
 import re
+import time
 
 import libconf
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, abort, jsonify, request, send_from_directory
 
 import config_io
 from process_manager import ProcessManager
@@ -17,6 +18,8 @@ from process_manager import ProcessManager
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIGS_DIR = os.path.join(BASE_DIR, "configs")
 STATE_PATH = os.path.join(BASE_DIR, "state.json")
+DEFAULT_RECORDINGS_DIR = os.path.expanduser("~/airband-recordings")
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.json.sort_keys = False
@@ -28,8 +31,13 @@ VALID_FILENAME = re.compile(r"^[A-Za-z0-9_.-]+\.conf$")
 def load_state():
     if os.path.isfile(STATE_PATH):
         with open(STATE_PATH) as f:
-            return json.load(f)
-    return {"active_config": "basic_multichannel.conf", "binary_path": "rtl_airband"}
+            state = json.load(f)
+    else:
+        state = {}
+    state.setdefault("active_config", "basic_multichannel.conf")
+    state.setdefault("binary_path", "rtl_airband")
+    state.setdefault("recordings_dir", DEFAULT_RECORDINGS_DIR)
+    return state
 
 
 def save_state(state):
@@ -142,7 +150,10 @@ def validate_raw_config():
 @app.get("/api/settings")
 def get_settings():
     state = load_state()
-    return jsonify({"binary_path": state.get("binary_path", "rtl_airband")})
+    return jsonify({
+        "binary_path": state.get("binary_path", "rtl_airband"),
+        "recordings_dir": state.get("recordings_dir", DEFAULT_RECORDINGS_DIR),
+    })
 
 
 @app.post("/api/settings")
@@ -151,8 +162,61 @@ def update_settings():
     state = load_state()
     if "binary_path" in body:
         state["binary_path"] = body["binary_path"]
+    if "recordings_dir" in body:
+        state["recordings_dir"] = body["recordings_dir"]
     save_state(state)
     return jsonify({"ok": True})
+
+
+def safe_recordings_subpath(base_dir, relpath):
+    """Resolves relpath under base_dir, refusing any path that escapes it."""
+    base = os.path.abspath(base_dir)
+    target = os.path.abspath(os.path.join(base, relpath))
+    if target != base and not target.startswith(base + os.sep):
+        raise ValueError("Path escapes recordings directory")
+    return target
+
+
+@app.get("/api/recordings")
+def list_recordings():
+    state = load_state()
+    base_dir = state.get("recordings_dir", DEFAULT_RECORDINGS_DIR)
+    entries = []
+    if os.path.isdir(base_dir):
+        for root, _dirs, files in os.walk(base_dir):
+            for fname in files:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext not in AUDIO_EXTENSIONS:
+                    continue
+                full = os.path.join(root, fname)
+                try:
+                    stat = os.stat(full)
+                except OSError:
+                    continue
+                rel = os.path.relpath(full, base_dir)
+                entries.append({
+                    "path": rel.replace(os.sep, "/"),
+                    "name": fname,
+                    "bytes": stat.st_size,
+                    "mtime": stat.st_mtime,
+                    "date": time.strftime("%Y-%m-%d", time.localtime(stat.st_mtime)),
+                })
+    entries.sort(key=lambda e: e["mtime"], reverse=True)
+    return jsonify({"base_dir": base_dir, "exists": os.path.isdir(base_dir), "recordings": entries})
+
+
+@app.get("/audio/<path:relpath>")
+def serve_audio(relpath):
+    state = load_state()
+    base_dir = state.get("recordings_dir", DEFAULT_RECORDINGS_DIR)
+    try:
+        full = safe_recordings_subpath(base_dir, relpath)
+    except ValueError:
+        abort(403)
+    if not os.path.isfile(full):
+        abort(404)
+    directory, filename = os.path.split(full)
+    return send_from_directory(directory, filename)
 
 
 @app.get("/api/process/status")
