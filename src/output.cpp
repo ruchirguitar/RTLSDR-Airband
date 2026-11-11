@@ -52,7 +52,9 @@
 #include "input-common.h"
 #include "rtl_airband.h"
 
-static void file_time(const time_t* t, struct tm* time) {
+// Takes the seconds by value: timeval::tv_sec is 'long' on Windows, not time_t.
+static void file_time(time_t seconds, struct tm* time) {
+    const time_t* t = &seconds;
 #ifdef _WIN32
     if (use_localtime) {
         localtime_s(time, t);
@@ -263,9 +265,9 @@ static std::string build_output_filename(const file_data* fdata, bool include_tx
     const char* timestamp_format = fdata->split_on_transmission ? "_%Y%m%d_%H%M%S" : "_%Y%m%d_%H";
 
     struct tm open_time;
-    file_time(&fdata->file_open_time.tv_sec, &open_time);
+    file_time(fdata->file_open_time.tv_sec, &open_time);
     struct tm transmission_time;
-    file_time(&fdata->transmission_start_time.tv_sec, &transmission_time);
+    file_time(fdata->transmission_start_time.tv_sec, &transmission_time);
 
     // build timestamp strings for open time
     char open_timestamp[32];
@@ -504,9 +506,9 @@ static bool close_if_necessary(output_t* output, bool reopening) {
     // Check if the hour boundary was just crossed.  NOTE: Actual hour number doesn't matter but still
     // need to use localtime if enabled (some timezones have partial hour offsets)
     struct tm tmp_tm;
-    file_time(&(fdata->file_open_time.tv_sec), &tmp_tm);
+    file_time(fdata->file_open_time.tv_sec, &tmp_tm);
     const int start_hour = tmp_tm.tm_hour;
-    file_time(&(current_time.tv_sec), &tmp_tm);
+    file_time(current_time.tv_sec, &tmp_tm);
     const int current_hour = tmp_tm.tm_hour;
 
     if (start_hour != current_hour) {

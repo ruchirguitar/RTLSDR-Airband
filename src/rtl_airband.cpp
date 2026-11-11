@@ -976,6 +976,7 @@ int main(int argc, char* argv[]) {
 #ifdef _WIN32
     // No fork() on Windows; the engine always runs in the foreground.
     UNUSED(foreground);
+    UNUSED(pidfile);
 #else
     if (!foreground) {
         int pid1, pid2;
