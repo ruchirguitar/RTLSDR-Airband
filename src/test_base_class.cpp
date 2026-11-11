@@ -63,12 +63,21 @@ void delete_directory(const string& root) {
 }
 
 string make_temp_dir(void) {
-    char temp_path_template[] = "/tmp/temp_unittest_dir_XXXXXX";
-    if (mkdtemp(temp_path_template) == NULL) {
+#ifdef _WIN32
+    // "/tmp" resolves to the root of the current drive on Windows
+    const char* base = getenv("TEMP");
+    if (base == NULL) {
+        base = getenv("TMP");
+    }
+    string temp_path_template = string(base != NULL ? base : ".") + "/temp_unittest_dir_XXXXXX";
+#else
+    string temp_path_template = "/tmp/temp_unittest_dir_XXXXXX";
+#endif
+    if (mkdtemp(&temp_path_template[0]) == NULL) {
         cerr << "Error making temp dir for test files: " << strerror(errno) << endl;
         return "";
     }
-    return string(temp_path_template);
+    return temp_path_template;
 }
 
 void TestBaseClass::SetUp(void) {

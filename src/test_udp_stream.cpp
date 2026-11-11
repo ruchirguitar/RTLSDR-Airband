@@ -28,10 +28,6 @@
 
 #include "rtl_airband.h"
 
-// util.cpp also contains level conversion helpers; their FFT size normally
-// comes from rtl_airband.cpp, which contains the application's main().
-size_t fft_size = 512;
-
 class UdpStreamTest : public ::testing::Test {
    protected:
     void SetUp() override {
