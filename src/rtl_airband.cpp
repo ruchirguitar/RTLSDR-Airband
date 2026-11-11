@@ -892,6 +892,18 @@ int main(int argc, char* argv[]) {
             error();
         }
 
+#ifdef _WIN32
+        // SIGBREAK is what CTRL_BREAK_EVENT delivers, which is how the GUI
+        // asks the engine to shut down cleanly (finishing open recordings).
+        signal(SIGINT, &sighandler);
+        signal(SIGTERM, &sighandler);
+        signal(SIGBREAK, &sighandler);
+        WSADATA wsa_data;
+        if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
+            cerr << "WSAStartup failed\n";
+            error();
+        }
+#else
         struct sigaction sigact, pipeact;
 
         memset(&sigact, 0, sizeof(sigact));
@@ -903,6 +915,7 @@ int main(int argc, char* argv[]) {
         sigaction(SIGINT, &sigact, NULL);
         sigaction(SIGQUIT, &sigact, NULL);
         sigaction(SIGTERM, &sigact, NULL);
+#endif
 
         devices = (device_t*)XCALLOC(device_count, sizeof(device_t));
         shout_init();
@@ -960,6 +973,10 @@ int main(int argc, char* argv[]) {
 
     log(LOG_INFO, "RTLSDR-Airband version %s starting\n", RTL_AIRBAND_VERSION);
 
+#ifdef _WIN32
+    // No fork() on Windows; the engine always runs in the foreground.
+    UNUSED(foreground);
+#else
     if (!foreground) {
         int pid1, pid2;
         if ((pid1 = fork()) == -1) {
@@ -1000,6 +1017,7 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+#endif
 
     for (int i = 0; i < mixer_count; i++) {
         if (mixers[i].enabled == false) {

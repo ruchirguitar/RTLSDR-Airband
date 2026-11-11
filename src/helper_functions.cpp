@@ -42,7 +42,11 @@ bool make_dir(const string& dir_path) {
         return true;
     }
 
+#ifdef _WIN32
+    if (mkdir(dir_path.c_str()) != 0) {
+#else
     if (mkdir(dir_path.c_str(), 0755) != 0) {
+#endif
         log(LOG_ERR, "Could not create directory %s: %s\n", dir_path.c_str(), strerror(errno));
         return false;
     }

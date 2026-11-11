@@ -53,11 +53,19 @@
 #include "rtl_airband.h"
 
 static void file_time(const time_t* t, struct tm* time) {
+#ifdef _WIN32
+    if (use_localtime) {
+        localtime_s(time, t);
+    } else {
+        gmtime_s(time, t);
+    }
+#else
     if (use_localtime) {
         localtime_r(t, time);
     } else {
         gmtime_r(t, time);
     }
+#endif
 }
 
 void shout_setup(icecast_data* icecast, mix_modes mixmode) {

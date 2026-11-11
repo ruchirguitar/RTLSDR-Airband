@@ -19,6 +19,11 @@
 #include <string.h>  // strerror()
 #include <syslog.h>  // LOG_INFO / LOG_ERR
 #include <unistd.h>  // close()
+#ifdef _WIN32
+#define CLOSE_SOCKET closesocket
+#else
+#define CLOSE_SOCKET close
+#endif
 #include <cassert>   // assert()
 
 #include <arpa/inet.h>  // inet_aton()
@@ -62,7 +67,7 @@ bool udp_stream_init(udp_stream_data* sdata, mix_modes mode, size_t len_bytes) {
 
         if (connect(sdata->send_socket, rptr->ai_addr, rptr->ai_addrlen) == -1) {
             log(LOG_INFO, "udp_stream: connect to %s:%s failed: %s\n", sdata->dest_address, sdata->dest_port, strerror(errno));
-            close(sdata->send_socket);
+            CLOSE_SOCKET(sdata->send_socket);
             sdata->send_socket = -1;
             continue;
         }
@@ -82,8 +87,8 @@ bool udp_stream_init(udp_stream_data* sdata, mix_modes mode, size_t len_bytes) {
     const int datagram_bytes = static_cast<int>(mode == MM_STEREO ? 2 * len_bytes : len_bytes);
     int sndbuf = 0;
     socklen_t optlen = sizeof(sndbuf);
-    if (getsockopt(sdata->send_socket, SOL_SOCKET, SO_SNDBUF, &sndbuf, &optlen) == 0 && sndbuf < datagram_bytes) {
-        if (setsockopt(sdata->send_socket, SOL_SOCKET, SO_SNDBUF, &datagram_bytes, sizeof(datagram_bytes)) == -1) {
+    if (getsockopt(sdata->send_socket, SOL_SOCKET, SO_SNDBUF, (char*)&sndbuf, &optlen) == 0 && sndbuf < datagram_bytes) {
+        if (setsockopt(sdata->send_socket, SOL_SOCKET, SO_SNDBUF, (const char*)&datagram_bytes, sizeof(datagram_bytes)) == -1) {
             log(LOG_WARNING, "udp_stream: could not raise send buffer to %d bytes: %s\n", datagram_bytes, strerror(errno));
         }
     }
@@ -97,7 +102,7 @@ void udp_stream_write(udp_stream_data* sdata, const float* data, size_t len_byte
         // The socket is connected during initialization, so use its peer.
         // sendto() with an explicit destination on a connected socket fails
         // with EISCONN on macOS.
-        send(sdata->send_socket, data, len_bytes, MSG_DONTWAIT | MSG_NOSIGNAL);
+        send(sdata->send_socket, (const char*)data, len_bytes, MSG_DONTWAIT | MSG_NOSIGNAL);
     }
 }
 
@@ -116,6 +121,6 @@ void udp_stream_write(udp_stream_data* sdata, const float* data_left, const floa
 
 void udp_stream_shutdown(udp_stream_data* sdata) {
     if (sdata->send_socket != -1) {
-        close(sdata->send_socket);
+        CLOSE_SOCKET(sdata->send_socket);
     }
 }

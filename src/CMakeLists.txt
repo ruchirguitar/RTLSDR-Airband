@@ -43,7 +43,14 @@ set(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS_ORIG})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_ORIG})
 
 find_library(LIBM m REQUIRED)
-find_library(LIBDL dl REQUIRED)
+if(WIN32)
+	# POSIX headers the engine needs that Windows lacks (syslog.h, netdb.h, ...)
+	include_directories(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/win32")
+	set(platform_libs ws2_32)
+else()
+	find_library(LIBDL dl REQUIRED)
+	set(platform_libs dl)
+endif()
 find_library(LIBPTHREAD pthread REQUIRED)
 
 find_package(PkgConfig REQUIRED)
@@ -307,7 +314,7 @@ target_include_directories (rtl_airband PUBLIC
 )
 
 target_link_libraries (rtl_airband
-	dl
+	${platform_libs}
 	m
 	pthread
 	${rtl_airband_extra_libs}
@@ -360,7 +367,7 @@ if(BUILD_UNITTESTS)
 	target_link_libraries(
 		unittests
 		GTest::gtest_main
-		dl
+		${platform_libs}
 		${rtl_airband_extra_libs}
 	)
 

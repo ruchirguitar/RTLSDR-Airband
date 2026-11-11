@@ -1,0 +1,74 @@
+name: Windows build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: '0' # version string comes from git tags
+
+    - name: Set up MSYS2 (UCRT64)
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          git
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ninja
+          mingw-w64-ucrt-x86_64-pkgconf
+          mingw-w64-ucrt-x86_64-libconfig
+          mingw-w64-ucrt-x86_64-lame
+          mingw-w64-ucrt-x86_64-libshout
+          mingw-w64-ucrt-x86_64-fftw
+          mingw-w64-ucrt-x86_64-rtl-sdr
+          mingw-w64-ucrt-x86_64-soapysdr
+
+    - name: Configure
+      run: >-
+        cmake -G Ninja -B build
+        -DCMAKE_BUILD_TYPE=Release
+        -DNFM=TRUE
+        -DPLATFORM=generic
+        -DPULSEAUDIO=OFF
+        -DBUILD_UNITTESTS=TRUE
+
+    - name: Build
+      run: cmake --build build -j4
+
+    - name: Unit tests
+      run: ./build/src/unittests.exe
+
+    - name: Smoke test
+      run: ./build/src/rtl_airband.exe -v
+
+    - name: Bundle exe with its DLLs
+      run: |
+        mkdir -p dist
+        cp build/src/rtl_airband.exe dist/
+        ldd build/src/rtl_airband.exe | awk '/ucrt64/ {print $3}' | xargs -r -I{} cp {} dist/
+        # SoapySDR loads hardware modules at runtime; ship whatever is installed
+        if [ -d /ucrt64/lib/SoapySDR ]; then cp -r /ucrt64/lib/SoapySDR dist/; fi
+        ls -la dist
+
+    - name: Smoke test the bundle outside MSYS2
+      shell: pwsh
+      run: .\dist\rtl_airband.exe -v
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: rtl_airband-windows-x64
+        path: dist/

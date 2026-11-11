@@ -20,7 +20,9 @@
 
 #include "input-common.h"
 #include <assert.h>
+#ifndef _WIN32
 #include <dlfcn.h>  // dlopen, dlsym
+#endif
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>   // asprintf
@@ -32,6 +34,36 @@ using namespace std;
 
 typedef input_t* (*input_new_func_t)(void);
 
+#ifdef _WIN32
+// Windows executables don't export symbols for dlsym-style lookup, so map
+// type names to constructors explicitly.
+#include "config.h"
+MODULE_EXPORT input_t* file_input_new();
+#ifdef WITH_RTLSDR
+MODULE_EXPORT input_t* rtlsdr_input_new();
+#endif
+#ifdef WITH_SOAPYSDR
+MODULE_EXPORT input_t* soapysdr_input_new();
+#endif
+
+static input_new_func_t find_input_new_func(char const* const type) {
+    if (strcmp(type, "file") == 0)
+        return file_input_new;
+#ifdef WITH_RTLSDR
+    if (strcmp(type, "rtlsdr") == 0)
+        return rtlsdr_input_new;
+#endif
+#ifdef WITH_SOAPYSDR
+    if (strcmp(type, "soapysdr") == 0)
+        return soapysdr_input_new;
+#endif
+    return NULL;
+}
+
+input_t* input_new(char const* const type) {
+    assert(type != NULL);
+    input_new_func_t fptr = find_input_new_func(type);
+#else
 input_t* input_new(char const* const type) {
     assert(type != NULL);
     void* dlhandle = dlopen(NULL, RTLD_NOW);
@@ -43,6 +75,7 @@ input_t* input_new(char const* const type) {
     }
     input_new_func_t fptr = (input_new_func_t)dlsym(dlhandle, fname);
     free(fname);
+#endif
     if (fptr == NULL) {
         return NULL;
     }
