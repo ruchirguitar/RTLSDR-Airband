@@ -46,7 +46,7 @@ jobs:
         -DBUILD_UNITTESTS=TRUE
 
     - name: Build
-      run: cmake --build build -j4
+      run: cmake --build build -j4 -- -k 0  # report every error, not just the first
 
     - name: Unit tests
       run: ./build/src/unittests.exe
