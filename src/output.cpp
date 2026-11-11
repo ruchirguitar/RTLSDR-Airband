@@ -40,6 +40,7 @@
 #endif /* WITH_PULSEAUDIO */
 
 #include <syslog.h>
+#include <algorithm>
 #include <cassert>
 #include <cerrno>
 #include <cstdlib>
@@ -51,6 +52,7 @@
 #include "helper_functions.h"
 #include "input-common.h"
 #include "rtl_airband.h"
+#include "segment_audio.h"
 
 // Takes the seconds by value: timeval::tv_sec is 'long' on Windows, not time_t.
 static void file_time(time_t seconds, struct tm* time) {
@@ -401,10 +403,66 @@ static int open_file(file_data* fdata, mix_modes mixmode, int is_audio) {
     return 0;
 }
 
+static bool segment_processing_enabled(const file_data* fdata) {
+    return fdata->type == O_FILE && (fdata->split_gap_tone || fdata->split_normalize || fdata->split_segment_log);
+}
+
+static std::string segment_log_path_for(const file_data* fdata) {
+    const std::string& path = fdata->file_path;
+    const std::string& suffix = fdata->suffix;
+    const bool has_suffix = path.size() >= suffix.size() && path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0;
+    return (has_suffix ? path.substr(0, path.size() - suffix.size()) : path) + ".segments.tsv";
+}
+
+// SegmentAudio's sink. A write error is picked up by the caller after push() or finish().
+static void write_mp3_samples(output_t* output, const float* samples, size_t count) {
+    file_data* fdata = (file_data*)(output->data);
+    for (size_t done = 0; done < count && !fdata->segment_write_failed;) {
+        const size_t n = std::min(count - done, (size_t)WAVE_BATCH);
+        const int mp3_bytes = lame_encode_buffer_ieee_float(output->lame, samples + done, NULL, (int)n, output->lamebuf, LAMEBUF_SIZE);
+        if (mp3_bytes < 0) {
+            log(LOG_WARNING, "lame_encode_buffer_ieee_float: %d\n", mp3_bytes);
+        } else if (mp3_bytes > 0 && fwrite(output->lamebuf, 1, (size_t)mp3_bytes, fdata->f) < (size_t)mp3_bytes) {
+            fdata->segment_write_failed = true;
+        }
+        done += n;
+    }
+}
+
+static void write_segment_log(file_data* fdata) {
+    const std::vector<SegmentInfo> segments = fdata->segment_audio->take_finished_segments();
+    if (!fdata->split_segment_log || segments.empty()) {
+        return;
+    }
+    if (!fdata->segment_log_f) {
+        fdata->segment_log_f = fopen(fdata->segment_log_path_tmp.c_str(), "wb");  // "\n" line ends on every platform
+        if (!fdata->segment_log_f) {
+            log(LOG_WARNING, "Cannot open %s (%s)\n", fdata->segment_log_path_tmp.c_str(), strerror(errno));
+            return;
+        }
+        fputs(segment_log_header().c_str(), fdata->segment_log_f);
+    }
+    const int frequency = fdata->freq ? fdata->freq->frequency : 0;
+    for (const SegmentInfo& segment : segments) {
+        fputs(format_segment_line(segment, frequency).c_str(), fdata->segment_log_f);
+    }
+    fflush(fdata->segment_log_f);
+}
+
 static void close_file(output_t* output, bool drop = false) {
     file_data* fdata = (file_data*)(output->data);
     if (!fdata) {
         return;
+    }
+
+    // the segment still in progress has to reach the encoder before it is flushed
+    if (fdata->segment_audio) {
+        if (fdata->f) {
+            fdata->segment_audio->finish();
+            write_segment_log(fdata);
+        }
+        delete fdata->segment_audio;
+        fdata->segment_audio = NULL;
     }
 
     // close all mp3 files for every output that has a lame context
@@ -438,6 +496,16 @@ static void close_file(output_t* output, bool drop = false) {
             rename_if_exists(fdata->file_path_tmp.c_str(), fdata->file_path.c_str());
         }
     }
+    if (fdata->segment_log_f) {
+        fclose(fdata->segment_log_f);
+        fdata->segment_log_f = NULL;
+        if (drop) {
+            unlink(fdata->segment_log_path_tmp.c_str());
+        } else {
+            rename_if_exists(fdata->segment_log_path_tmp.c_str(), segment_log_path_for(fdata).c_str());
+        }
+    }
+    fdata->segment_log_path_tmp.clear();
     fdata->file_path.clear();
     fdata->file_path_tmp.clear();
 }
@@ -583,6 +651,16 @@ static bool output_file_ready(channel_t* channel, output_t* output) {
         return false;
     }
 
+    if (segment_processing_enabled(fdata)) {
+        SegmentAudioOptions options;
+        options.gap_tone = fdata->split_gap_tone;
+        options.normalize = fdata->split_normalize;
+        options.normalize_target_dbfs = (float)fdata->split_normalize_target;
+        fdata->segment_write_failed = false;
+        fdata->segment_audio = new SegmentAudio(options, WAVE_RATE, [output](const float* samples, size_t count) { write_mp3_samples(output, samples, count); });
+        fdata->segment_log_path_tmp = segment_log_path_for(fdata) + ".tmp";
+    }
+
     return true;
 }
 
@@ -649,6 +727,21 @@ void process_outputs(channel_t* channel, int cur_scan_freq) {
                 channel->outputs[k].enabled = false;
                 continue;
             };
+
+            if (fdata->segment_audio) {
+                timeval now;
+                gettimeofday(&now, NULL);
+                fdata->segment_audio->push(channel->waveout, WAVE_BATCH, channel->axcindicate != NO_SIGNAL, now);
+                write_segment_log(fdata);
+                if (fdata->segment_write_failed) {
+                    log(LOG_WARNING, "Cannot write to %s (%s), output disabled\n", fdata->file_path.c_str(), strerror(errno));
+                    close_file(&channel->outputs[k]);
+                    channel->outputs[k].enabled = false;
+                }
+                channel->outputs[k].active = (channel->axcindicate != NO_SIGNAL);
+                fdata->last_write_time = now;
+                continue;
+            }
 
             // encode mp3 bytes if O_FILE
             const auto& lame = channel->outputs[k].lame;

@@ -105,6 +105,38 @@ static void parse_split_file_times(libconfig::Setting& out, file_data* fdata, in
     fdata->split_include_transmission_start = fdata->split_include_transmission_start && fdata->split_on_transmission;
 }
 
+// settings for joining a file's transmissions without the silence between them
+// must be called after fdata->split_on_transmission is set
+static void parse_split_segment_settings(libconfig::Setting& out, file_data* fdata, int i, int j, int o, bool parsing_mixers) {
+    const string gap_tone_key = "split_gap_tone";
+    const string normalize_key = "split_normalize";
+    const string normalize_target_key = "split_normalize_target";
+    const string segment_log_key = "split_segment_log";
+
+    check_split_only_settings(out, {gap_tone_key, normalize_key, normalize_target_key, segment_log_key}, "split_gap_tone, split_normalize, split_normalize_target and split_segment_log are", fdata,
+                              i, j, o, parsing_mixers);
+
+    if (!setting_as_bool_or(out, gap_tone_key.c_str(), false, &fdata->split_gap_tone)) {
+        output_error(i, j, o, parsing_mixers, gap_tone_key + " must be a boolean");
+    }
+    if (!setting_as_bool_or(out, normalize_key.c_str(), false, &fdata->split_normalize)) {
+        output_error(i, j, o, parsing_mixers, normalize_key + " must be a boolean");
+    }
+    if (!setting_as_double_or(out, normalize_target_key.c_str(), -20.0, &fdata->split_normalize_target)) {
+        output_error(i, j, o, parsing_mixers, normalize_target_key + " must be a number");
+    }
+    if (fdata->split_normalize_target < -60.0 || fdata->split_normalize_target > 0.0) {
+        output_error(i, j, o, parsing_mixers, normalize_target_key + " must be between -60 and 0 (dBFS)");
+    }
+    if (!setting_as_bool_or(out, segment_log_key.c_str(), false, &fdata->split_segment_log)) {
+        output_error(i, j, o, parsing_mixers, segment_log_key + " must be a boolean");
+    }
+
+    if (!fdata->split_on_transmission) {
+        fdata->split_gap_tone = fdata->split_normalize = fdata->split_segment_log = false;
+    }
+}
+
 static int parse_outputs(libconfig::Setting& outs, channel_t* channel, int i, int j, bool parsing_mixers) {
     int oo = 0;
     for (int o = 0; o < channel->output_count; o++) {
@@ -181,6 +213,7 @@ static int parse_outputs(libconfig::Setting& outs, channel_t* channel, int i, in
             fdata->split_on_transmission = outs[o].exists("split_on_transmission") ? (bool)(outs[o]["split_on_transmission"]) : false;
             fdata->include_freq = outs[o].exists("include_freq") ? (bool)(outs[o]["include_freq"]) : false;
             parse_split_file_times(outs[o], fdata, i, j, o, parsing_mixers);
+            parse_split_segment_settings(outs[o], fdata, i, j, o, parsing_mixers);
 
             channel->outputs[oo].has_mp3_output = true;
 

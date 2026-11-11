@@ -130,6 +130,7 @@ struct icecast_data {
 };
 
 struct freq_t;
+class SegmentAudio;
 
 struct file_data {
     // set once by config
@@ -147,6 +148,10 @@ struct file_data {
     double split_max_idle_time;
     bool split_include_transmission_start;
     double split_tx_drop_shorter_than;
+    bool split_gap_tone;
+    bool split_normalize;
+    double split_normalize_target;
+    bool split_segment_log;
 
     // set per output file
     timeval transmission_start_time;
@@ -157,6 +162,12 @@ struct file_data {
     std::string file_path;
     std::string file_path_tmp;
     FILE* f;
+
+    // only while a file is open with split_gap_tone, split_normalize or split_segment_log
+    SegmentAudio* segment_audio;
+    bool segment_write_failed;
+    std::string segment_log_path_tmp;
+    FILE* segment_log_f;
 };
 
 struct udp_stream_data {
