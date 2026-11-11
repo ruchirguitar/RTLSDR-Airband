@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Fail if any step fails.
+set -eo pipefail
+
 unameOut="$(uname -s)"
 
 echo "Running on ${unameOut} as ${USER}"
@@ -20,15 +23,12 @@ case "${unameOut}" in
             libpulse-dev \
             libopenblas0-pthread
 
-        (
-            git clone https://github.com/f4exb/libmirisdr-4
-            cd libmirisdr-4 || exit
-            mkdir build
-            cd build || exit
-            cmake ../
-            sudo make install
-            sudo ldconfig
-        )
+        # Optional, for -DPROFILING=TRUE, install only if apt can resolve it.
+        if sudo apt-get install -y --dry-run libgoogle-perftools-dev >/dev/null 2>&1; then
+            sudo apt-get install -y libgoogle-perftools-dev
+        else
+            echo "libgoogle-perftools-dev is not installable here, profiling build will be skipped"
+        fi
         ;;
 
     Darwin*)

@@ -84,9 +84,12 @@ bool multiple_demod_threads = false;
 bool multiple_output_threads = false;
 bool log_scan_activity = false;
 char* stats_filepath = NULL;
+double stats_update_interval = 15.0;
 double global_split_min_file_time = 1.0;
 double global_split_max_file_time = 60.0 * 60.0;
 double global_split_max_idle_time = 0.5;
+bool global_split_include_transmission_start = false;
+double global_split_tx_drop_shorter_than = 0.0;
 size_t fft_size_log = DEFAULT_FFT_SIZE_LOG;
 size_t fft_size = 1 << fft_size_log;
 
@@ -188,13 +191,9 @@ class AFC {
     const status _prev_axcindicate;
 
 #ifdef WITH_BCM_VC
-    float square(const GPU_FFT_COMPLEX* fft_results, size_t index) {
-        return fft_results[index].re * fft_results[index].re + fft_results[index].im * fft_results[index].im;
-    }
+    float square(const GPU_FFT_COMPLEX* fft_results, size_t index) { return fft_results[index].re * fft_results[index].re + fft_results[index].im * fft_results[index].im; }
 #else
-    float square(const fftwf_complex* fft_results, size_t index) {
-        return fft_results[index][0] * fft_results[index][0] + fft_results[index][1] * fft_results[index][1];
-    }
+    float square(const fftwf_complex* fft_results, size_t index) { return fft_results[index][0] * fft_results[index][0] + fft_results[index][1] * fft_results[index][1]; }
 #endif /* WITH_BCM_VC */
 
     template <class FFT_RESULTS, int STEP>
@@ -858,11 +857,27 @@ int main(int argc, char* argv[]) {
             log_scan_activity = true;
         if (root.exists("stats_filepath"))
             stats_filepath = strdup(root["stats_filepath"]);
+        parse_global_double(root, "stats_update_interval", &stats_update_interval);
+        if (!valid_stats_update_interval(stats_update_interval)) {
+            cerr << "Configuration error: stats_update_interval must be greater than 0\n";
+            error();
+        }
+        if (root.exists("stats_update_interval") && !stats_filepath)
+            cerr << "Warning: stats_update_interval is ignored without stats_filepath\n";
         parse_global_double(root, "split_min_file_time", &global_split_min_file_time);
         parse_global_double(root, "split_max_file_time", &global_split_max_file_time);
         parse_global_double(root, "split_max_idle_time", &global_split_max_idle_time);
         if (!valid_split_file_times(global_split_min_file_time, global_split_max_file_time, global_split_max_idle_time)) {
             cerr << "Configuration error: " << split_file_times_constraint << "\n";
+            error();
+        }
+        if (!setting_as_bool_or(root, "split_include_transmission_start", global_split_include_transmission_start, &global_split_include_transmission_start)) {
+            cerr << "Configuration error: split_include_transmission_start must be a boolean\n";
+            error();
+        }
+        parse_global_double(root, "split_tx_drop_shorter_than", &global_split_tx_drop_shorter_than);
+        if (!valid_split_tx_drop_shorter_than(global_split_tx_drop_shorter_than, global_split_max_file_time)) {
+            cerr << "Configuration error: " << split_tx_drop_shorter_than_constraint << "\n";
             error();
         }
 #ifdef NFM
