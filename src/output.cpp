@@ -330,14 +330,15 @@ static int open_file(file_data* fdata, mix_modes mixmode, int is_audio) {
     if (fdata->append) {
         // Open without O_APPEND so fseek+fwrite works correctly (e.g. for the lametag).
         // Try r+ (existing file) first; fall back to w (new file) if it doesn't exist yet.
-        fdata->f = fopen(fdata->file_path_tmp.c_str(), "r+");
+        // Binary mode: on Windows text mode turns every 0x0A byte of the audio into 0x0D 0x0A.
+        fdata->f = fopen(fdata->file_path_tmp.c_str(), "r+b");
         if (fdata->f == NULL) {
-            fdata->f = fopen(fdata->file_path_tmp.c_str(), "w");
+            fdata->f = fopen(fdata->file_path_tmp.c_str(), "wb");
         } else {
             fseek(fdata->f, 0, SEEK_END);
         }
     } else {
-        fdata->f = fopen(fdata->file_path_tmp.c_str(), "w");
+        fdata->f = fopen(fdata->file_path_tmp.c_str(), "wb");
     }
     if (fdata->f == NULL) {
         return -1;
