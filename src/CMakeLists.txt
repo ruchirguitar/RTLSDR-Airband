@@ -115,9 +115,6 @@ set(PLATFORM "native" CACHE STRING "Optimize the build for the given hardware pl
 option(RTLSDR "Enable RTL-SDR support" ON)
 set(WITH_RTLSDR FALSE)
 
-option(MIRISDR "Enable Mirics support" ON)
-set(WITH_MIRISDR FALSE)
-
 option(SOAPYSDR "Enable SoapySDR support" ON)
 set(WITH_SOAPYSDR FALSE)
 
@@ -135,17 +132,8 @@ if(RTLSDR)
 		list(APPEND rtl_airband_include_dirs ${RTLSDR_INCLUDE_DIRS})
 		list(APPEND link_dirs ${RTLSDR_LIBRARY_DIRS})
 		set(WITH_RTLSDR TRUE)
-	endif()
-endif()
-
-if(MIRISDR)
-	find_package(MiriSDR)
-	if(MIRISDR_FOUND)
-		set(WITH_MIRISDR TRUE)
-		list(APPEND rtl_airband_extra_sources input-mirisdr.cpp)
-		list(APPEND rtl_airband_extra_libs ${MIRISDR_LIBRARIES})
-		list(APPEND rtl_airband_include_dirs ${MIRISDR_INCLUDE_DIRS})
-		list(APPEND link_dirs ${MIRISDR_LIBRARY_DIRS})
+	else()
+		message(FATAL_ERROR "RTLSDR is enabled but librtlsdr was not found; install it or pass -DRTLSDR=OFF")
 	endif()
 endif()
 
@@ -159,7 +147,7 @@ if(SOAPYSDR)
 		list(APPEND rtl_airband_include_dirs ${SoapySDR_INCLUDE_DIRS})
 		set(WITH_SOAPYSDR TRUE)
 	else()
-		message(STATUS "  SoapySDR not found")
+		message(FATAL_ERROR "SOAPYSDR is enabled but SoapySDR was not found; install it or pass -DSOAPYSDR=OFF")
 	endif()
 endif()
 
@@ -171,6 +159,8 @@ if(PULSEAUDIO)
 		list(APPEND rtl_airband_include_dirs ${PULSEAUDIO_INCLUDE_DIRS})
 		list(APPEND link_dirs ${PULSEAUDIO_LIBRARY_DIRS})
 		set(WITH_PULSEAUDIO TRUE)
+	else()
+		message(FATAL_ERROR "PULSEAUDIO is enabled but libpulse was not found; install it or pass -DPULSEAUDIO=OFF")
 	endif()
 endif()
 
@@ -182,6 +172,8 @@ if(PROFILING)
 		list(APPEND rtl_airband_include_dirs ${PROFILING_INCLUDE_DIRS})
 		list(APPEND link_dirs ${PROFILING_LIBRARY_DIRS})
 		set(WITH_PROFILING TRUE)
+	else()
+		message(FATAL_ERROR "PROFILING is enabled but libprofiler (gperftools) was not found; install it or pass -DPROFILING=OFF")
 	endif()
 endif()
 
@@ -246,7 +238,6 @@ message(STATUS "- Build type:\t\t${CMAKE_BUILD_TYPE}")
 message(STATUS "- Operating system:\t\t${CMAKE_SYSTEM_NAME}")
 message(STATUS "- SDR drivers:")
 message(STATUS "  - librtlsdr:\t\trequested: ${RTLSDR}, enabled: ${WITH_RTLSDR}")
-message(STATUS "  - mirisdr:\t\t\trequested: ${MIRISDR}, enabled: ${WITH_MIRISDR}")
 message(STATUS "  - soapysdr:\t\trequested: ${SOAPYSDR}, enabled: ${WITH_SOAPYSDR}")
 message(STATUS "- Other options:")
 message(STATUS "  - Platform:\t\t${PLATFORM}")
@@ -358,6 +349,8 @@ if(BUILD_UNITTESTS)
 		ctcss.cpp
 		generate_signal.cpp
 		helper_functions.cpp
+		udp_stream.cpp
+		util.cpp
 	)
 
 	add_executable(
@@ -371,10 +364,10 @@ if(BUILD_UNITTESTS)
 		${rtl_airband_extra_libs}
 	)
 
-	# add include for config.h and libconfig++ (needed by helper_functions.cpp)
+	# config.h and the dependencies of the production sources used by tests
 	target_include_directories (unittests PUBLIC
 		${CMAKE_CURRENT_BINARY_DIR}
-		${CONFIG_INCLUDE_DIRS}
+		${rtl_airband_include_dirs}
 	)
 
 	include(GoogleTest)

@@ -376,24 +376,30 @@ def speedup_factor(request: pytest.FixtureRequest) -> float:
 # ---------------------------------------------------------------------------
 
 
-def run_rtl_airband(
-    binary: Path,
-    config_path: Path,
-    timeout_s: float,
-) -> subprocess.CompletedProcess:
-    """
-    Run: <binary> -F -e -c <config_path>
-
-    Captures stdout and stderr. On timeout, re-raises with captured stderr.
-    Asserts returncode == 0, including stderr in the assertion message on failure.
-    """
-    cmd = (["sudo"] if _use_sudo else []) + [
+def rtl_airband_cmd(binary: Path, config_path: Path) -> list[str]:
+    """Command line run_rtl_airband uses, for tests that manage the process themselves."""
+    return (["sudo"] if _use_sudo else []) + [
         str(binary),
         "-F",
         "-e",
         "-c",
         str(config_path),
     ]
+
+
+def run_rtl_airband(
+    binary: Path,
+    config_path: Path,
+    timeout_s: float,
+    check: bool = True,
+) -> subprocess.CompletedProcess:
+    """
+    Run: <binary> -F -e -c <config_path>
+
+    Captures stdout and stderr. On timeout, re-raises with captured stderr.
+    With check, asserts returncode == 0, including stderr in the assertion message.
+    """
+    cmd = rtl_airband_cmd(binary, config_path)
     try:
         result = subprocess.run(
             cmd,
@@ -412,7 +418,7 @@ def run_rtl_airband(
             stderr=f"Process timed out after {timeout_s}s.\nStderr so far:\n{stderr_so_far}",
         ) from exc
 
-    assert result.returncode == 0, (
+    assert not check or result.returncode == 0, (
         f"rtl_airband exited with code {result.returncode}.\n"
         f"Command: {' '.join(cmd)}\n"
         f"Stderr:\n{result.stderr}\n"
