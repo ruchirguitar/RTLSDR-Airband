@@ -289,6 +289,7 @@ add_library (rtl_airband_base OBJECT
 	helper_functions.cpp
 	segment_audio.cpp
 	spectrum.cpp
+	control.cpp
 	${CMAKE_CURRENT_BINARY_DIR}/version.cpp
 	${rtl_airband_extra_sources}
 	)
@@ -365,6 +366,7 @@ if(BUILD_UNITTESTS)
 		helper_functions.cpp
 		segment_audio.cpp
 		spectrum.cpp
+		control.cpp
 		udp_stream.cpp
 		util.cpp
 	)

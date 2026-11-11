@@ -177,6 +177,25 @@ int rtlsdr_stop(input_t* const input) {
     return rtlsdr_close(dev_data->dev);
 }
 
+int rtlsdr_set_gain(input_t* const input, float const gain_db) {
+    rtlsdr_dev_data_t* dev_data = (rtlsdr_dev_data_t*)input->dev_data;
+    assert(dev_data->dev != NULL);
+
+    int ngain = 0;
+    if (rtlsdr_nearest_gain(dev_data->dev, (int)(gain_db * 10.0f), &ngain) != true) {
+        log(LOG_ERR, "Failed to read supported gain list for device #%d\n", dev_data->index);
+        return -1;
+    }
+    int r = rtlsdr_set_tuner_gain(dev_data->dev, ngain);
+    if (r < 0) {
+        log(LOG_ERR, "Failed to set gain to %0.2f for device #%d: error %d\n", (float)ngain / 10.f, dev_data->index, r);
+        return -1;
+    }
+    dev_data->gain = ngain;
+    log(LOG_INFO, "Device #%d: gain set to %0.2f dB\n", dev_data->index, (float)rtlsdr_get_tuner_gain(dev_data->dev) / 10.f);
+    return 0;
+}
+
 int rtlsdr_set_centerfreq(input_t* const input, int const centerfreq) {
     rtlsdr_dev_data_t* dev_data = (rtlsdr_dev_data_t*)input->dev_data;
     assert(dev_data->dev != NULL);
@@ -249,6 +268,7 @@ MODULE_EXPORT input_t* rtlsdr_input_new() {
     input->init = &rtlsdr_init;
     input->run_rx_thread = &rtlsdr_rx_thread;
     input->set_centerfreq = &rtlsdr_set_centerfreq;
+    input->set_gain = &rtlsdr_set_gain;
     input->stop = &rtlsdr_stop;
     return input;
 }

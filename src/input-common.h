@@ -51,6 +51,7 @@ struct input_t {
     int (*init)(input_t* const input);
     void* (*run_rx_thread)(void* input_ptr);  // to be launched via pthread_create()
     int (*set_centerfreq)(input_t* const input, int const centerfreq);
+    int (*set_gain)(input_t* const input, float const gain_db);  // optional (NULL: not supported while running)
     int (*stop)(input_t* const input);
     pthread_t rx_thread;
     pthread_mutex_t buffer_lock;
@@ -61,6 +62,7 @@ int input_init(input_t* const input);
 int input_parse_config(input_t* const input, libconfig::Setting& cfg);
 int input_start(input_t* const input);
 int input_set_centerfreq(input_t* const input, int const centerfreq);
+int input_set_gain(input_t* const input, float const gain_db);
 int input_stop(input_t* const input);
 
 #endif /* _INPUT_COMMON_H */

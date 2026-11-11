@@ -45,16 +45,31 @@ std::vector<float> SpectrumAccumulator::take_line() {
     return line;
 }
 
-std::vector<unsigned char> encode_spectrum_packet(const std::vector<float>& line, uint32_t centre_hz, uint32_t sample_rate) {
+float magnitude_db(float magnitude, size_t bins) {
+    return (float)(20.0 * log10(std::max((double)magnitude, 1e-10) / (double)std::max<size_t>(1, bins)));
+}
+
+std::vector<unsigned char> encode_spectrum_packet(const std::vector<float>& line, uint32_t centre_hz, uint32_t sample_rate, const std::vector<SpectrumChannel>& channels) {
     const uint32_t bins = (uint32_t)line.size();
-    std::vector<unsigned char> p(20 + line.size() * sizeof(float), 0);
+    const uint32_t count = (uint32_t)channels.size();
+    const size_t line_end = 20 + line.size() * sizeof(float);
+    std::vector<unsigned char> p(line_end + 4 + channels.size() * 20, 0);
     memcpy(&p[0], "FRSP", 4);
-    p[4] = 1;
+    p[4] = 2;
     memcpy(&p[8], &centre_hz, 4);
     memcpy(&p[12], &sample_rate, 4);
     memcpy(&p[16], &bins, 4);
     if (!line.empty()) {
         memcpy(&p[20], line.data(), line.size() * sizeof(float));
+    }
+    memcpy(&p[line_end], &count, 4);
+    for (size_t i = 0; i < channels.size(); i++) {
+        unsigned char* c = &p[line_end + 4 + i * 20];
+        memcpy(c, &channels[i].freq_hz, 4);
+        memcpy(c + 4, &channels[i].noise_db, 4);
+        memcpy(c + 8, &channels[i].threshold_db, 4);
+        memcpy(c + 12, &channels[i].signal_db, 4);
+        c[16] = channels[i].open ? 1 : 0;
     }
     return p;
 }

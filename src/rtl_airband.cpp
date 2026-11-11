@@ -62,6 +62,7 @@
 #include "helper_functions.h"
 #include "input-common.h"
 #include "logging.h"
+#include "control.h"
 #include "rtl_airband.h"
 #include "spectrum.h"
 #include "squelch.h"
@@ -110,12 +111,49 @@ void sighandler(int sig) {
 }
 
 #ifdef _WIN32
+static void apply_control_command(const std::string& line) {
+    ControlCommand cmd;
+    std::string err;
+    if (!parse_control_command(line, &cmd, &err)) {
+        log(LOG_WARNING, "Ignoring command \"%s\": %s\n", line.c_str(), err.c_str());
+        return;
+    }
+    if (cmd.device >= device_count) {
+        log(LOG_WARNING, "Ignoring command \"%s\": no device %d\n", line.c_str(), cmd.device);
+        return;
+    }
+    device_t* dev = devices + cmd.device;
+    if (cmd.kind == ControlCommand::GAIN) {
+        if (input_set_gain(dev->input, cmd.value) != 0) {
+            log(LOG_WARNING, "Device #%d: gain can't be changed while running\n", cmd.device);
+        }
+    } else {
+        if (cmd.channel >= dev->channel_count) {
+            log(LOG_WARNING, "Ignoring command \"%s\": no channel %d\n", line.c_str(), cmd.channel);
+            return;
+        }
+        channel_t* channel = dev->channels + cmd.channel;
+        for (int f = 0; f < channel->freq_count; f++) {
+            channel->freqlist[f].squelch.set_squelch_snr_threshold(cmd.value);
+        }
+        log(LOG_INFO, "Device #%d channel %d: squelch SNR threshold %.1f dB\n", cmd.device, cmd.channel, cmd.value);
+    }
+}
+
 // A GUI that starts the engine as a hidden child has no reliable way to deliver
 // Ctrl+Break to it, so when stdin is a pipe, treat the pipe closing (the parent
-// asking us to stop, or the parent dying) as a shutdown request.
+// asking us to stop, or the parent dying) as a shutdown request. Lines read
+// before that are control commands (control.h).
 static void* stdin_watch_thread(void*) {
-    char buf[64];
-    while (fread(buf, 1, sizeof(buf), stdin) > 0) {
+    char buf[256];
+    while (fgets(buf, sizeof(buf), stdin) != NULL) {
+        std::string line(buf);
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) {
+            line.pop_back();
+        }
+        if (!line.empty()) {
+            apply_control_command(line);
+        }
     }
     log(LOG_NOTICE, "stdin closed, exiting\n");
     do_exit = 1;
@@ -535,7 +573,15 @@ void* demodulate(void* params) {
         }
 #else
         if (dev->spectrum && dev->spectrum->add((const float*)fftout)) {
-            const std::vector<unsigned char> packet = encode_spectrum_packet(dev->spectrum->take_line(), (uint32_t)dev->input->centerfreq, (uint32_t)dev->input->sample_rate);
+            // squelch levels are FFT bin magnitudes, so they share the spectrum's dB scale
+            std::vector<SpectrumChannel> levels;
+            for (int j = 0; j < dev->channel_count; j++) {
+                channel_t* ch = dev->channels + j;
+                freq_t* fp = ch->freqlist + ch->freq_idx;
+                levels.push_back({(uint32_t)fp->frequency, magnitude_db(fp->squelch.noise_level(), fft_size), magnitude_db(fp->squelch.squelch_level(), fft_size),
+                                  magnitude_db(fp->squelch.signal_level(), fft_size), fp->squelch.is_open()});
+            }
+            const std::vector<unsigned char> packet = encode_spectrum_packet(dev->spectrum->take_line(), (uint32_t)dev->input->centerfreq, (uint32_t)dev->input->sample_rate, levels);
             udp_stream_write(dev->spectrum_stream, (const float*)packet.data(), packet.size());
         }
         for (int j = 0; j < dev->channel_count; j++) {
@@ -1080,7 +1126,7 @@ int main(int argc, char* argv[]) {
         if (dev->spectrum_stream) {
             // one FFT per audio sample (FFT_BATCH is 1 without the VideoCore FFT)
             dev->spectrum = new SpectrumAccumulator(fft_size, WAVE_RATE / dev->spectrum_rate);
-            if (!udp_stream_init(dev->spectrum_stream, MM_MONO, 20 + fft_size * sizeof(float))) {
+            if (!udp_stream_init(dev->spectrum_stream, MM_MONO, 24 + fft_size * sizeof(float) + (size_t)dev->channel_count * 20)) {
                 cerr << "Failed to initialize the spectrum output of device " << i << " - aborting\n";
                 error();
             }

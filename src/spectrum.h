@@ -44,8 +44,21 @@ class SpectrumAccumulator {
     std::vector<double> power_;
 };
 
+// A channel's squelch, in the same dB scale as the spectrum line.
+struct SpectrumChannel {
+    uint32_t freq_hz;
+    float noise_db;
+    float threshold_db;
+    float signal_db;
+    bool open;
+};
+
+// dB of a squelch level (an FFT bin magnitude) on the spectrum's scale.
+float magnitude_db(float magnitude, size_t bins);
+
 // The UDP datagram for one line (host byte order, little-endian on every supported platform):
-//   "FRSP", u8 version (1), 3 bytes zero, u32 centre_hz, u32 sample_rate, u32 bins, f32 dB[bins]
-std::vector<unsigned char> encode_spectrum_packet(const std::vector<float>& line, uint32_t centre_hz, uint32_t sample_rate);
+//   "FRSP", u8 version (2), 3 bytes zero, u32 centre_hz, u32 sample_rate, u32 bins, f32 dB[bins],
+//   u32 channel count, then per channel: u32 freq_hz, f32 noise_db, f32 threshold_db, f32 signal_db, u8 open, 3 bytes zero
+std::vector<unsigned char> encode_spectrum_packet(const std::vector<float>& line, uint32_t centre_hz, uint32_t sample_rate, const std::vector<SpectrumChannel>& channels = {});
 
 #endif /* _SPECTRUM_H */

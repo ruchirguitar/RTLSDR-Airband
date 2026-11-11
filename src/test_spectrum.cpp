@@ -71,12 +71,36 @@ TEST(Spectrum, averages_power_in_db_full_scale) {
     EXPECT_TRUE(std::isfinite(line[0]));
 }
 
+TEST(Spectrum, magnitude_on_the_line_scale) {
+    // a full-scale tone has magnitude `bins` in its bin: 0 dB on both scales
+    EXPECT_NEAR(magnitude_db((float)kBins, kBins), 0.0f, 1e-4);
+    EXPECT_NEAR(magnitude_db((float)kBins / 10.0f, kBins), -20.0f, 1e-4);
+    EXPECT_TRUE(std::isfinite(magnitude_db(0.0f, kBins)));
+}
+
+TEST(Spectrum, packet_carries_channel_squelch) {
+    std::vector<float> line = {-50.0f};
+    std::vector<SpectrumChannel> ch = {{145400000u, -90.0f, -80.0f, -60.0f, true}, {145200000u, -91.0f, -79.0f, -95.0f, false}};
+    std::vector<unsigned char> p = encode_spectrum_packet(line, 145300000u, 2560000u, ch);
+    ASSERT_EQ(p.size(), 20u + 4 + 4 + 2 * 20);
+    uint32_t count, freq;
+    float threshold;
+    memcpy(&count, &p[24], 4);
+    EXPECT_EQ(count, 2u);
+    memcpy(&freq, &p[28 + 20], 4);
+    memcpy(&threshold, &p[28 + 20 + 8], 4);
+    EXPECT_EQ(freq, 145200000u);
+    EXPECT_FLOAT_EQ(threshold, -79.0f);
+    EXPECT_EQ(p[28 + 16], 1);
+    EXPECT_EQ(p[28 + 20 + 16], 0);
+}
+
 TEST(Spectrum, packet_layout) {
     std::vector<float> line = {-50.0f, -60.5f};
     std::vector<unsigned char> p = encode_spectrum_packet(line, 145300000u, 2560000u);
-    ASSERT_EQ(p.size(), 20u + 2 * 4);
+    ASSERT_EQ(p.size(), 20u + 2 * 4 + 4);
     EXPECT_EQ(memcmp(p.data(), "FRSP", 4), 0);
-    EXPECT_EQ(p[4], 1);
+    EXPECT_EQ(p[4], 2);
     uint32_t centre, rate, bins;
     memcpy(&centre, &p[8], 4);
     memcpy(&rate, &p[12], 4);

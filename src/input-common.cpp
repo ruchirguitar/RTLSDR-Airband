@@ -162,3 +162,11 @@ int input_set_centerfreq(input_t* const input, int const centerfreq) {
     input->centerfreq = centerfreq;
     return 0;
 }
+
+int input_set_gain(input_t* const input, float const gain_db) {
+    assert(input != NULL);
+    if (input->set_gain == NULL || input->state != INPUT_RUNNING) {
+        return -1;
+    }
+    return input->set_gain(input, gain_db);
+}
