@@ -114,7 +114,11 @@ TEST(TestHelpers, delete_directory) {
     string path = temp_dir;
     for (int i = 0; i < 5; ++i) {
         path = path + "/sub_dir";
+#ifdef _WIN32
+        mkdir(path.c_str());
+#else
         mkdir(path.c_str(), 0777);
+#endif
 
         string filename = path + "/some_file";
         fclose(fopen(filename.c_str(), "w"));

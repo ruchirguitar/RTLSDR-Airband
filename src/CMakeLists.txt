@@ -349,6 +349,11 @@ if(BUILD_UNITTESTS)
 	enable_testing()
 
 	file(GLOB_RECURSE TEST_FILES "test_*.cpp")
+	if(WIN32)
+		# Uses POSIX socket semantics (SO_RCVTIMEO as timeval, MSG_DONTWAIT);
+		# UDP output on Windows is checked end to end through the GUI's live listening.
+		list(FILTER TEST_FILES EXCLUDE REGEX "test_udp_stream\\.cpp$")
+	endif()
 	list(APPEND TEST_FILES
 		squelch.cpp
 		logging.cpp

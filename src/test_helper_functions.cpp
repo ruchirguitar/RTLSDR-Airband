@@ -19,6 +19,7 @@
 
 #include "test_base_class.h"
 
+#include <string.h>
 #include <libconfig.h++>
 
 #include "helper_functions.h"
@@ -34,6 +35,16 @@ class HelperFunctionsTest : public TestBaseClass {
         EXPECT_TRUE(file_exists(filepath));
     }
 };
+
+// Built by hand rather than with strptime(), which Windows lacks.
+static struct tm march_7_2010() {
+    struct tm t;
+    memset(&t, 0, sizeof(t));
+    t.tm_year = 2010 - 1900;
+    t.tm_mon = 2;
+    t.tm_mday = 7;
+    return t;
+}
 
 TEST_F(HelperFunctionsTest, dir_exists_true) {
     EXPECT_TRUE(dir_exists(temp_dir));
@@ -133,9 +144,7 @@ TEST_F(HelperFunctionsTest, make_subdirs_extra_slashes) {
 }
 
 TEST_F(HelperFunctionsTest, make_dated_subdirs_normal) {
-    struct tm time_struct;
-
-    strptime("2010-3-7", "%Y-%m-%d", &time_struct);
+    struct tm time_struct = march_7_2010();
 
     const string dir_path = temp_dir + "/2010/03/07";
 
@@ -145,25 +154,21 @@ TEST_F(HelperFunctionsTest, make_dated_subdirs_normal) {
 }
 
 TEST_F(HelperFunctionsTest, make_dated_subdirs_fail) {
-    struct tm time_struct;
-
-    strptime("2010-3-7", "%Y-%m-%d", &time_struct);
+    struct tm time_struct = march_7_2010();
 
     EXPECT_EQ(make_dated_subdirs("/invalid/base/dir", &time_struct), "");
 }
 
 TEST_F(HelperFunctionsTest, make_dated_subdirs_some_exist) {
-    struct tm time_struct;
+    struct tm time_struct = march_7_2010();
 
     const string dir_through_month = temp_dir + "/2010/03/";
-
-    strptime("2010-3-7", "%Y-%m-%d", &time_struct);
     EXPECT_EQ(make_dated_subdirs(temp_dir, &time_struct), dir_through_month + "07");
 
     EXPECT_TRUE(dir_exists(dir_through_month));
     EXPECT_FALSE(dir_exists(dir_through_month + "08"));
 
-    strptime("2010-3-8", "%Y-%m-%d", &time_struct);
+    time_struct.tm_mday = 8;
     EXPECT_EQ(make_dated_subdirs(temp_dir, &time_struct), dir_through_month + "08");
     EXPECT_TRUE(dir_exists(dir_through_month + "08"));
 }
