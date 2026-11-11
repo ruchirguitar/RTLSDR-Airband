@@ -108,6 +108,31 @@ void sighandler(int sig) {
     do_exit = 1;
 }
 
+#ifdef _WIN32
+// A GUI that starts the engine as a hidden child has no reliable way to deliver
+// Ctrl+Break to it, so when stdin is a pipe, treat the pipe closing (the parent
+// asking us to stop, or the parent dying) as a shutdown request.
+static void* stdin_watch_thread(void*) {
+    char buf[64];
+    while (fread(buf, 1, sizeof(buf), stdin) > 0) {
+    }
+    log(LOG_NOTICE, "stdin closed, exiting\n");
+    do_exit = 1;
+    return NULL;
+}
+
+static void start_stdin_watch() {
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    if (in == INVALID_HANDLE_VALUE || in == NULL || GetFileType(in) != FILE_TYPE_PIPE) {
+        return;
+    }
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, &stdin_watch_thread, NULL) == 0) {
+        pthread_detach(thread);
+    }
+}
+#endif /* _WIN32 */
+
 void* controller_thread(void* params) {
     device_t* dev = (device_t*)params;
     int i = 0;
@@ -903,6 +928,7 @@ int main(int argc, char* argv[]) {
             cerr << "WSAStartup failed\n";
             error();
         }
+        start_stdin_watch();
 #else
         struct sigaction sigact, pipeact;
 
