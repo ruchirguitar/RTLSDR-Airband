@@ -845,6 +845,33 @@ int parse_devices(libconfig::Setting& devs) {
         }
 #endif /* NFM */
 
+        if (devs[i].exists("spectrum")) {
+#ifdef WITH_BCM_VC
+            cerr << "Configuration error: devices.[" << i << "]: spectrum is not supported with the Broadcom VideoCore FFT\n";
+            error();
+#else
+            libconfig::Setting& sp = devs[i]["spectrum"];
+            if (!sp.exists("dest_address") || !sp.exists("dest_port")) {
+                cerr << "Configuration error: devices.[" << i << "]: spectrum needs dest_address and dest_port\n";
+                error();
+            }
+            dev->spectrum_stream = (udp_stream_data*)XCALLOC(1, sizeof(struct udp_stream_data));
+            dev->spectrum_stream->dest_address = strdup(sp["dest_address"]);
+            if (sp["dest_port"].getType() == libconfig::Setting::TypeInt) {
+                char buffer[12];
+                snprintf(buffer, sizeof(buffer), "%d", (int)sp["dest_port"]);
+                dev->spectrum_stream->dest_port = strdup(buffer);
+            } else {
+                dev->spectrum_stream->dest_port = strdup(sp["dest_port"]);
+            }
+            dev->spectrum_rate = sp.exists("rate") ? (int)sp["rate"] : 15;
+            if (dev->spectrum_rate < 1 || dev->spectrum_rate > 50) {
+                cerr << "Configuration error: devices.[" << i << "]: spectrum rate must be 1 to 50 lines per second\n";
+                error();
+            }
+#endif /* WITH_BCM_VC */
+        }
+
         // Parse hardware-dependent configuration parameters
         if (input_parse_config(dev->input, devs[i]) < 0) {
             // FIXME: get and display error string from input_parse_config

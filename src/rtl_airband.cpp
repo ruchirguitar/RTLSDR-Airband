@@ -63,6 +63,7 @@
 #include "input-common.h"
 #include "logging.h"
 #include "rtl_airband.h"
+#include "spectrum.h"
 #include "squelch.h"
 
 #ifdef WITH_PROFILING
@@ -533,6 +534,10 @@ void* demodulate(void* params) {
             }
         }
 #else
+        if (dev->spectrum && dev->spectrum->add((const float*)fftout)) {
+            const std::vector<unsigned char> packet = encode_spectrum_packet(dev->spectrum->take_line(), (uint32_t)dev->input->centerfreq, (uint32_t)dev->input->sample_rate);
+            udp_stream_write(dev->spectrum_stream, (const float*)packet.data(), packet.size());
+        }
         for (int j = 0; j < dev->channel_count; j++) {
             dev->channels[j].wavein[dev->waveend] = sqrtf(fftout[dev->bins[j]][0] * fftout[dev->bins[j]][0] + fftout[dev->bins[j]][1] * fftout[dev->bins[j]][1]);
             if (dev->channels[j].needs_raw_iq) {
@@ -1071,6 +1076,15 @@ int main(int argc, char* argv[]) {
                     error();
                 }
             }
+        }
+        if (dev->spectrum_stream) {
+            // one FFT per audio sample (FFT_BATCH is 1 without the VideoCore FFT)
+            dev->spectrum = new SpectrumAccumulator(fft_size, WAVE_RATE / dev->spectrum_rate);
+            if (!udp_stream_init(dev->spectrum_stream, MM_MONO, 20 + fft_size * sizeof(float))) {
+                cerr << "Failed to initialize the spectrum output of device " << i << " - aborting\n";
+                error();
+            }
+            log(LOG_INFO, "Device #%d: sending a %zu-bin spectrum %d times a second\n", i, fft_size, dev->spectrum_rate);
         }
         if (input_init(dev->input) != 0 || dev->input->state != INPUT_INITIALIZED) {
             if (errno != 0) {

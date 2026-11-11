@@ -131,6 +131,7 @@ struct icecast_data {
 
 struct freq_t;
 class SegmentAudio;
+class SpectrumAccumulator;
 
 struct file_data {
     // set once by config
@@ -322,6 +323,10 @@ struct device_t {
     int failed;
     enum rec_modes mode;
     size_t output_overrun_count;
+    // optional spectrum lines over UDP (`spectrum` group in the device config)
+    SpectrumAccumulator* spectrum;
+    udp_stream_data* spectrum_stream;
+    int spectrum_rate;
 };
 
 struct mixinput_t {
